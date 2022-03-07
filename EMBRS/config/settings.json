@@ -1,0 +1,17 @@
+﻿{
+  "Steam_ID": "", //Steam ID of the rewards-based game
+  "Test_Player": "", //Steam vanity URL of player to test rewards system out (only needs the nickname and not the full URL)
+  "Test_Address": "", //XRPL address to test rewards system out
+  "Web_API_Key": "", //Steam publisher Web API key required to test if Test_Player is a valid player whom also owns the registered rewards-based game
+  "WebSocket_URL": "wss://xrplcluster.com/", //Main Net: 	wss://s1.ripple.com/  wss://xrplcluster.com/  Test Net: wss://s.altnet.rippletest.net/
+  "Reward_Address": "rGDaEAuTDrbecX3RHvWtNGPJ3vsghuHn4", //Address that holds the tokens for rewards
+  "Reward_Address_Secret": "", //Secret to the rewards address. KEEP THIS PRIVATE AND SAFE!
+  "Currency_Code": "EMBRS", //ticker symbol of EMBRS token
+  "Issuer_Address": "rPbKMFvHbdEGBog98UjZXRdUx37MFKMfxB", //Address that issued the tokens for rewards
+  "TransferFee": 0, //Usually not applicable. Leave at 0 if unsure. TransferRate of your token in %, must be between 0 and 100
+  "Reward_Token_Amt": 0.000001, //amount to send in each rewards txn
+  "AccountLinesThrottle": 10, //Number of seconds between request calls. Recommended not to change. Lower settings could result in a block from web service hosts.
+  "TxnThrottle": 1, //Number of seconds between request calls. Recommended not to change. Lower settings could result in a block from web service hosts.
+  "FeeMultiplier": 1.1, //How many times above average fees to pay for reliable transactions
+  "MaximumFee": 11 //Maximum number of drops willing to pay for each transaction
+}
