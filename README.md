@@ -1,5 +1,5 @@
 # EMBRS
-EMBRS is a platform for game developers to provide a "Play-To-Earn" mechanic within their games
+EMBRS is a platform on the XRP Ledger for game developers to provide a "Play-To-Earn" mechanic within their games
 
 ## Features
 
