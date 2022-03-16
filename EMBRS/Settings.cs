@@ -5,7 +5,6 @@ namespace EMBRS
 {
     public static class Settings
     {
-        public static string JsonUrl { get; set; }
         public static uint SteamID { get; set; }
         public static string TestPlayer { get; set; }
         public static string TestAddress { get; set; }
@@ -26,20 +25,19 @@ namespace EMBRS
         {
             string jsonConfig = File.ReadAllText(System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "config/settings.json"));
             dynamic d = JObject.Parse(jsonConfig);
-            JsonUrl = d.JSON_URL;
-            SteamID = d.Steam_ID;
-            TestPlayer = d.Test_Player;
-            TestAddress = d.Test_Address;
-            WebAPIKey = d.Web_API_Key;
-            WebsockUrl = d.WebSocket_URL;
-            RewardAddress = d.Reward_Address;
-            RewardSecret = d.Reward_Address_Secret;
-            string currencyCodeVal = d.Currency_Code.Value;
-            if(currencyCodeVal.Length == 3) CurrencyCode = d.Currency_Code.Value;
-            else CurrencyCode = Utils.AddZeros(Utils.ConvertHex(d.Currency_Code.Value));
-            IssuerAddress = d.Issuer_Address;
+            SteamID = d.SteamID;
+            TestPlayer = d.TestPlayer;
+            TestAddress = d.TestAddress;
+            WebAPIKey = d.WebAPIKey;
+            WebsockUrl = d.WebSocketURL;
+            RewardAddress = d.RewardAddress;
+            RewardSecret = d.RewardSecret;
+            string currencyCodeVal = d.CurrencyCode.Value;
+            if(currencyCodeVal.Length == 3) CurrencyCode = d.CurrencyCode.Value;
+            else CurrencyCode = Utils.AddZeros(Utils.ConvertHex(d.CurrencyCode.Value));
+            IssuerAddress = d.IssuerAddress;
             TransferFee = d.TransferFee;
-            RewardTokenAmt = d.Reward_Token_Amt;
+            RewardTokenAmt = d.RewardTokenAmt;
             AccountLinesThrottle = d.AccountLinesThrottle;
             TxnThrottle = d.TxnThrottle;
             FeeMultiplier = d.FeeMultiplier;
