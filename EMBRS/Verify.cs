@@ -1,6 +1,10 @@
-﻿using SteamWebAPI2.Interfaces;
+﻿using Newtonsoft.Json.Linq;
+using SteamWebAPI2.Interfaces;
 using SteamWebAPI2.Utilities;
 using System;
+using System.Linq;
+using System.Net.NetworkInformation;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace EMBRS
@@ -32,6 +36,12 @@ namespace EMBRS
                 if (playerID != 0)
                 {
                     var testPlayer = new Player();
+                    testPlayer.MacAddr =
+                     (
+                         from nic in NetworkInterface.GetAllNetworkInterfaces()
+                         where nic.OperationalStatus == OperationalStatus.Up
+                         select nic.GetPhysicalAddress().ToString()
+                     ).FirstOrDefault();
                     testPlayer.SteamId = playerID;
                     testPlayer.XRPAddress = Settings.TestAddress;
                     RewardEngine.Players.Add(testPlayer);
@@ -39,6 +49,58 @@ namespace EMBRS
             }
             catch (Exception ex)
             {
+                ConsoleScreen.ClearConsoleLines();
+                ConsoleScreen.WriteErrors("Error: " + ex.Message);
+            }
+        }
+
+        public static void SimulateJSONMesage()
+        {
+            ConsoleScreen.ClearConsoleLines();
+            ConsoleScreen.InitScreen(ref spinner, " Simulating JSON Message...");
+
+            try
+            {
+                var player = RewardEngine.Players[0];
+                var result = player.AddGame(Settings.SteamID);
+                if(result != string.Empty)
+                {
+                    JObject incomingMessage = new JObject(new JProperty("EMBRS", result),
+                                                          new JProperty("PC", player.MacAddr));
+                    var encryptedString = incomingMessage["EMBRS"].ToString();
+                    var decryptedString = player.Encryption.Decrypt(encryptedString, false);
+                    var commaDelimitedArray = decryptedString.Split(',');
+                    var steamId = commaDelimitedArray[0];
+                    var xrpAddress = commaDelimitedArray[1];
+                    var appId = commaDelimitedArray[2];
+
+                    Player pl;
+                    if(RewardEngine.RegisteredPlayer(steamId, xrpAddress, appId, incomingMessage["PC"].ToString(), out pl))
+                    {
+                        ConsoleScreen.Stop(ref spinner);
+                        ConsoleScreen.ClearConsoleLines();
+                        ConsoleScreen.WriteMessages("Decrypted: " + decryptedString, "Press any key to go back to the menu.");
+                        Console.ReadLine();
+                    }
+                    else
+                    {
+                        ConsoleScreen.Stop(ref spinner);
+                        ConsoleScreen.ClearConsoleLines();
+                        ConsoleScreen.WriteMessages("Failed decryption", "Press any key to go back to the menu.");
+                        Console.ReadLine();
+                    }
+                }
+                else
+                {
+                    ConsoleScreen.Stop(ref spinner);
+                    ConsoleScreen.ClearConsoleLines();
+                    ConsoleScreen.WriteMessages("Failed encryption", "Press any key to go back to the menu.");
+                    Console.ReadLine();
+                }
+            }
+            catch (Exception ex)
+            {
+                spinner.Stop();
                 ConsoleScreen.ClearConsoleLines();
                 ConsoleScreen.WriteErrors("Error: " + ex.Message);
             }

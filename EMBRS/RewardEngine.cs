@@ -28,6 +28,39 @@ namespace EMBRS
             Developers.Add(testDeveloper);
         }
 
+        public static bool RegisteredDeveloper(uint appId, out Developer dev)
+        {
+            foreach(var developer in Developers)
+            {
+                if(developer.AppId == appId)
+                {
+                    dev = developer;
+                    return true;
+                }
+            }
+
+            dev = null;
+            return false;
+        }
+
+        public static bool RegisteredPlayer(string steamId, string xrpAddress, string appId, string macAddr, out Player pl)
+        {
+            foreach (var player in Players)
+            {
+                if (player.SteamId == ulong.Parse(steamId) &&
+                    player.XRPAddress == xrpAddress &&
+                    player.RegisteredGame(uint.Parse(appId)) &&
+                    player.MacAddr == macAddr)
+                {
+                    pl = player;
+                    return true;
+                }
+            }
+
+            pl = null;
+            return false;
+        }
+
         public static async Task SendRewardAsync()
         {
             ConsoleScreen.ClearConsoleLines();
@@ -35,7 +68,7 @@ namespace EMBRS
 
             try
             {
-                IRippleClient client = new RippleClient(Settings.WebsockUrl);
+                IRippleClient client = new RippleClient(Settings.WebSocketUrl);
                 client.Connect();
                 uint sequence = await XRPL.GetLatestAccountSequence(client, Settings.RewardAddress);
                 var f = await client.Fees();

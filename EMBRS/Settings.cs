@@ -9,7 +9,7 @@ namespace EMBRS
         public static string TestPlayer { get; set; }
         public static string TestAddress { get; set; }
         public static string WebAPIKey { get; set; }
-        public static string WebsockUrl { get; set; }
+        public static string WebSocketUrl { get; set; }
         public static string RewardAddress { get; set; }
         public static string RewardSecret { get; set; }
         public static string CurrencyCode { get; set; }
@@ -29,7 +29,7 @@ namespace EMBRS
             TestPlayer = d.TestPlayer;
             TestAddress = d.TestAddress;
             WebAPIKey = d.WebAPIKey;
-            WebsockUrl = d.WebSocketURL;
+            WebSocketUrl = d.WebSocketURL;
             RewardAddress = d.RewardAddress;
             RewardSecret = d.RewardSecret;
             string currencyCodeVal = d.CurrencyCode.Value;
