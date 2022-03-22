@@ -14,17 +14,17 @@ EMBRS is a platform on the XRP Ledger for game developers to provide a "Play-To-
 
 ## Settings
 
-- **Steam_ID**: The AppId of the test Steam game providing EMBRS rewards
-- **Test_Player**: The SteamId or Steam vanity URL of player to test rewards system out (only needs the nickname and not the full URL)
-- **Test_Address**: The XRPL address to test rewards system out
-- **Web_API_Key**: The Steam publisher Web API key - see [WebAPI Overview](https://partner.steamgames.com/doc/webapi_overview/auth)
-- **WebSocket_URL**: Main Net: 	wss://s1.ripple.com/  wss://xrplcluster.com/  Test Net: wss://s.altnet.rippletest.net/
-- **Reward_Address**: Address that holds the tokens for rewards
-- **Reward_Address_Secret**: Secret to the rewards address. KEEP THIS PRIVATE AND SAFE!
-- **Currency_Code**: Ticker symbol of EMBRS token (do not change)
-- **Issuer_Address**: Address that issued the tokens for rewards (do not change)
+- **SteamID**: The AppId of the test Steam game providing EMBRS rewards
+- **TestPlayer**: The SteamId or Steam vanity URL of player to test rewards system out (only needs the nickname and not the full URL)
+- **TestAddress**: The XRPL address to test rewards system out
+- **WebAPIKey**: The Steam publisher Web API key - see [WebAPI Overview](https://partner.steamgames.com/doc/webapi_overview/auth)
+- **WebSocketURL**: Main Net: 	wss://s1.ripple.com/  wss://xrplcluster.com/  Test Net: wss://s.altnet.rippletest.net/
+- **RewardAddress**: Address that holds the tokens for rewards
+- **RewardSecret**: Secret to the rewards address. KEEP THIS PRIVATE AND SAFE!
+- **CurrencyCode**: Ticker symbol of EMBRS token (do not change)
+- **IssuerAddress**: Address that issued the tokens for rewards (do not change)
 - **TransferFee**: Usually not applicable. Leave at 0 if unsure. TransferRate of your token in %, must be between 0 and 100
-- **Reward_Token_Amt**: Amount to send in each rewards txn
+- **RewardTokenAmt**: Amount to send in each rewards txn
 - **AccountLinesThrottle**: Number of seconds between request calls. Recommended not to change. Lower settings could result in a block from web service hosts
 - **TxnThrottle**: Number of seconds between request calls. Recommended not to change. Lower settings could result in a block from web service hosts.
 - **FeeMultiplier**: How many times above average fees to pay for reliable transactions
