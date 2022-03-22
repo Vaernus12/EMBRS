@@ -3,6 +3,7 @@ EMBRS is a platform on the XRP Ledger for game developers to provide a "Play-To-
 
 ## Features
 
+- Simulate an incoming JSON message
 - Simulate an EMBRS payout with a valid SteamId
 - Do a test EMBRS payout with a valid SteamId and XRP Address
 - Register a new developer via Steam AppId
@@ -34,8 +35,9 @@ EMBRS is a platform on the XRP Ledger for game developers to provide a "Play-To-
 
 - Ensure that the config/settings.json file is completed filled out (this normally would attach to the main XRP address providing EMBRS rewards, but can work on any address holding EMBRS provided Rewards_Address and Rewards_Address_Secret are correct)
 - Run the project in Visual Studio 2019
-- Option 1 will simulate validating the Test_Player using Steamworks Web API to ensure they own Steam_ID and recently played it
-- Option 2 completes the same testing, but will send Reward_Token_Amt to from Reward_Address to Test_Address
-- Option 3 will request an AppId (not currently validated) and add as a new developer
-- Option 4 will request a player's SteamId (not currently validated) and an XRP address (also not currently validated) and add as a new player
-- Option 5 will exit
+- Option 1 will simulate an incoming JSON message (received from a game) and validates against public/private key
+- Option 2 will simulate validating the TestPlayer using Steamworks Web API to ensure they own SteamID and recently played it
+- Option 3 completes the same testing, but will send RewardTokenAmt to from RewardAddress to TestAddress
+- Option 4 will request an AppId (not currently validated) and add as a new developer
+- Option 5 will request a player's SteamId (not currently validated) and an XRP address (also not currently validated) and add as a new player
+- Option 6 will exit
