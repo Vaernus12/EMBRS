@@ -33,7 +33,7 @@ EMBRS is a platform on the XRP Ledger for game developers to provide a "Play-To-
 
 ## Getting Started
 
-- Ensure that the config/settings.json file is completed filled out (this normally would attach to the main XRP address providing EMBRS rewards, but can work on any address holding EMBRS provided Rewards_Address and Rewards_Address_Secret are correct)
+- Ensure that the config/settings.json file is completed filled out (this normally would attach to the main XRP address providing EMBRS rewards, but can work on any address holding EMBRS provided RewardsAddress and RewardsSecret are correct)
 - Run the project in Visual Studio 2019
 - Option 1 will simulate an incoming JSON message (received from a game) and validates against public/private key
 - Option 2 will simulate validating the TestPlayer using Steamworks Web API to ensure they own SteamID and recently played it
