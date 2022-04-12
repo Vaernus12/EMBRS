@@ -5,10 +5,14 @@ namespace EMBRS
 {
     public static class Settings
     {
-        public static uint SteamID { get; set; }
+        public static string Developer { get; set; }
+        public static string SteamGame { get; set; }
+        public static uint SteamAppID { get; set; }
         public static string TestPlayer { get; set; }
         public static string TestAddress { get; set; }
         public static string WebAPIKey { get; set; }
+        public static string AzureString { get; set; }
+        public static string GameFilesLocation { get; set; }
         public static string WebSocketUrl { get; set; }
         public static string RewardAddress { get; set; }
         public static string RewardSecret { get; set; }
@@ -25,10 +29,14 @@ namespace EMBRS
         {
             string jsonConfig = File.ReadAllText(System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "config/settings.json"));
             dynamic d = JObject.Parse(jsonConfig);
-            SteamID = d.SteamID;
+            Developer = d.Developer;
+            SteamGame = d.SteamGame;
+            SteamAppID = d.SteamAppID;
             TestPlayer = d.TestPlayer;
             TestAddress = d.TestAddress;
             WebAPIKey = d.WebAPIKey;
+            AzureString = d.AzureString;
+            GameFilesLocation = d.GameFilesLocation;
             WebSocketUrl = d.WebSocketURL;
             RewardAddress = d.RewardAddress;
             RewardSecret = d.RewardSecret;

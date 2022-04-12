@@ -2,9 +2,6 @@
 using SteamWebAPI2.Interfaces;
 using SteamWebAPI2.Utilities;
 using System;
-using System.Linq;
-using System.Net.NetworkInformation;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace EMBRS
@@ -35,15 +32,7 @@ namespace EMBRS
 
                 if (playerID != 0)
                 {
-                    var testPlayer = new Player();
-                    testPlayer.MacAddr =
-                     (
-                         from nic in NetworkInterface.GetAllNetworkInterfaces()
-                         where nic.OperationalStatus == OperationalStatus.Up
-                         select nic.GetPhysicalAddress().ToString()
-                     ).FirstOrDefault();
-                    testPlayer.SteamId = playerID;
-                    testPlayer.XRPAddress = Settings.TestAddress;
+                    var testPlayer = new Player(playerID, Settings.TestAddress);
                     RewardEngine.Players.Add(testPlayer);
                 }
             }
@@ -62,20 +51,19 @@ namespace EMBRS
             try
             {
                 var player = RewardEngine.Players[0];
-                var result = player.AddGame(Settings.SteamID);
+                var result = player.AddGame(Settings.SteamAppID);
                 if(result != string.Empty)
                 {
-                    JObject incomingMessage = new JObject(new JProperty("EMBRS", result),
-                                                          new JProperty("PC", player.MacAddr));
+                    JObject incomingMessage = new JObject(new JProperty("EMBRS", result));
                     var encryptedString = incomingMessage["EMBRS"].ToString();
-                    var decryptedString = player.Encryption.Decrypt(encryptedString, false);
+                    var decryptedString = player.GetEncryption().Decrypt(encryptedString, false);
                     var commaDelimitedArray = decryptedString.Split(',');
                     var steamId = commaDelimitedArray[0];
                     var xrpAddress = commaDelimitedArray[1];
                     var appId = commaDelimitedArray[2];
 
                     Player pl;
-                    if(RewardEngine.RegisteredPlayer(steamId, xrpAddress, appId, incomingMessage["PC"].ToString(), out pl))
+                    if(RewardEngine.RegisteredPlayer(steamId, xrpAddress, appId, out pl))
                     {
                         ConsoleScreen.Stop(ref spinner);
                         ConsoleScreen.ClearConsoleLines();
@@ -113,30 +101,30 @@ namespace EMBRS
 
             try
             {
-                if (RewardEngine.Players[0].SteamId != 0)
+                if (RewardEngine.Players[0].GetSteamId() != 0)
                 {
                     var steamGamesInterface = webInterfaceFactory.CreateSteamWebInterface<PlayerService>();
-                    var ownedGames = await steamGamesInterface.GetOwnedGamesAsync(RewardEngine.Players[0].SteamId);
+                    var ownedGames = await steamGamesInterface.GetOwnedGamesAsync(RewardEngine.Players[0].GetSteamId());
                     foreach (var game in ownedGames.Data.OwnedGames)
                     {
-                        if (game.AppId == RewardEngine.Developers[0].AppId)
+                        if (game.AppId == RewardEngine.Developers[0].GetGames()[0].GetAppId())
                         {
-                            var recentGames = await steamGamesInterface.GetRecentlyPlayedGamesAsync(RewardEngine.Players[0].SteamId);
+                            var recentGames = await steamGamesInterface.GetRecentlyPlayedGamesAsync(RewardEngine.Players[0].GetSteamId());
                             foreach (var recentGame in recentGames.Data.RecentlyPlayedGames)
                             {
-                                if (recentGame.AppId == RewardEngine.Developers[0].AppId)
+                                if (recentGame.AppId == RewardEngine.Developers[0].GetGames()[0].GetAppId())
                                 {
                                     ConsoleScreen.Stop(ref spinner);
                                     ConsoleScreen.ClearConsoleLines();
 
                                     if (simulate)
                                     {
-                                        ConsoleScreen.WriteMessages("Successfully verified " + RewardEngine.Players[0].SteamId + " properly owns " + RewardEngine.Developers[0].AppId + ". Reward payment simulated. Press any key to go back to the menu.");
+                                        ConsoleScreen.WriteMessages("Successfully verified " + RewardEngine.Players[0].GetSteamId() + " properly owns " + RewardEngine.Developers[0].GetGames()[0].GetAppId() + ". Reward payment simulated. Press any key to go back to the menu.");
                                         Console.ReadLine();
                                     }
                                     else
                                     {
-                                        ConsoleScreen.WriteMessages("Successfully verified " + RewardEngine.Players[0].SteamId + " properly owns " + RewardEngine.Developers[0].AppId + ". Press any key to send rewards payout.");
+                                        ConsoleScreen.WriteMessages("Successfully verified " + RewardEngine.Players[0].GetSteamId() + " properly owns " + RewardEngine.Developers[0].GetGames()[0].GetAppId() + ". Press any key to send rewards payout.");
                                         Console.ReadLine();
                                         await RewardEngine.SendRewardAsync();
                                     }
@@ -149,14 +137,14 @@ namespace EMBRS
 
                     ConsoleScreen.Stop(ref spinner);
                     ConsoleScreen.ClearConsoleLines();
-                    ConsoleScreen.WriteMessages("Failed verification of " + RewardEngine.Players[0].SteamId + " owning " + RewardEngine.Developers[0].AppId + ". Press any key to go back to the menu.");
+                    ConsoleScreen.WriteMessages("Failed verification of " + RewardEngine.Players[0].GetSteamId() + " owning " + RewardEngine.Developers[0].GetGames()[0].GetAppId() + ". Press any key to go back to the menu.");
                     Console.ReadLine();
                 }
                 else
                 {
                     ConsoleScreen.Stop(ref spinner);
                     ConsoleScreen.ClearConsoleLines();
-                    ConsoleScreen.WriteMessages("Failed resolving vanity URL of " + RewardEngine.Players[0].SteamId + ". Press any key to go back to the menu.");
+                    ConsoleScreen.WriteMessages("Failed resolving vanity URL of " + RewardEngine.Players[0].GetSteamId() + ". Press any key to go back to the menu.");
                     Console.ReadLine();
                 }
             }

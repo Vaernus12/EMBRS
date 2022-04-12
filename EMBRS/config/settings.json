@@ -1,8 +1,12 @@
 ﻿{
-  "SteamID": "", //Steam ID of the rewards-based game
+  "Developer": "Quarter Onion Games", //Developer of the rewards-based test game
+  "SteamGame": "Emberlight: Rekindled", //Name of the rewards-based test game
+  "SteamAppID": "", //Steam AppId of the rewards-based test game
   "TestPlayer": "", //Steam vanity URL of player to test rewards system out (only needs the nickname and not the full URL)
-  "TestAddress": "", //XRPL address to test rewards system out
-  "WebAPIKey": "", //Steam publisher Web API key required to test if Test_Player is a valid player whom also owns the registered rewards-based game
+  "TestAddress": "", //XRPL address to test rewards system
+  "WebAPIKey": "", //Steam publisher Web API key required to test if TestPlayer is a valid player whom also owns the registered rewards-based game
+  "AzureString": "", //Azure connection string to access developer blobs holding game data or patches
+  "GameFilesLocation": "", //File location containing test game's current files or patch
   "WebSocketURL": "wss://xrplcluster.com/", //Main Net: 	wss://s1.ripple.com/  wss://xrplcluster.com/  Test Net: wss://s.altnet.rippletest.net/
   "RewardAddress": "rGDaEAuTDrbecX3RHvWtNGPJ3vsghuHn4", //Address that holds the tokens for rewards
   "RewardSecret": "", //Secret to the rewards address. KEEP THIS PRIVATE AND SAFE!

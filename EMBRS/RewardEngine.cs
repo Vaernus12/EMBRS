@@ -23,34 +23,36 @@ namespace EMBRS
             Developers = new List<Developer>();
             Players = new List<Player>();
 
-            var testDeveloper = new Developer();
-            testDeveloper.AppId = Settings.SteamID;
+            var testDeveloper = new Developer(Settings.Developer);
+            testDeveloper.AddGame(Settings.SteamGame, Settings.SteamAppID);
             Developers.Add(testDeveloper);
         }
 
-        public static bool RegisteredDeveloper(uint appId, out Developer dev)
+        public static bool RegisteredGame(uint appId, out Game game)
         {
             foreach(var developer in Developers)
             {
-                if(developer.AppId == appId)
+                foreach(var addedGame in developer.GetGames())
                 {
-                    dev = developer;
-                    return true;
+                    if (addedGame.GetAppId() == appId)
+                    {
+                        game = addedGame;
+                        return true;
+                    }
                 }
             }
 
-            dev = null;
+            game = null;
             return false;
         }
 
-        public static bool RegisteredPlayer(string steamId, string xrpAddress, string appId, string macAddr, out Player pl)
+        public static bool RegisteredPlayer(string steamId, string xrpAddress, string appId, out Player pl)
         {
             foreach (var player in Players)
             {
-                if (player.SteamId == ulong.Parse(steamId) &&
-                    player.XRPAddress == xrpAddress &&
-                    player.RegisteredGame(uint.Parse(appId)) &&
-                    player.MacAddr == macAddr)
+                if (player.GetSteamId() == ulong.Parse(steamId) &&
+                    player.GetXRPAddress() == xrpAddress &&
+                    player.IsGameRegisteredToPlayer(uint.Parse(appId)))
                 {
                     pl = player;
                     return true;
@@ -83,7 +85,7 @@ namespace EMBRS
 
                 int feeInDrops = Convert.ToInt32(Math.Floor(f.Drops.OpenLedgerFee * Settings.FeeMultiplier));
 
-                var response = await XRPL.SendXRPPaymentAsync(client, Players[0].XRPAddress, sequence, feeInDrops, Settings.TransferFee);
+                var response = await XRPL.SendXRPPaymentAsync(client, Players[0].GetXRPAddress(), sequence, feeInDrops, Settings.TransferFee);
 
                 //Transaction Node isn't Current. Wait for Network
                 if (response.EngineResult == "noCurrent" || response.EngineResult == "noNetwork")
@@ -93,7 +95,7 @@ namespace EMBRS
                     {
                         //Throttle for node to catch up
                         Thread.Sleep(Settings.TxnThrottle * 3000);
-                        response = await XRPL.SendXRPPaymentAsync(client, Players[0].XRPAddress, sequence, feeInDrops);
+                        response = await XRPL.SendXRPPaymentAsync(client, Players[0].GetXRPAddress(), sequence, feeInDrops);
                         retry++;
                     }
                 }

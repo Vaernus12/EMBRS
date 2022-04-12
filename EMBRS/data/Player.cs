@@ -4,37 +4,79 @@ namespace EMBRS
 {
     public class Player
     {
-        public ulong SteamId;
-        public string XRPAddress;
-        public List<Developer> AddedGames;
-        public Encryption Encryption;
-        public string MacAddr;
+        private ulong _steamId;
+        private string _xrpAddress;
+        private List<Game> _addedGames;
+        private Encryption _encryption;
 
-        public Player()
+        public Player(ulong steamId, string xrpAddress)
         {
-            SteamId = 0;
-            XRPAddress = string.Empty;
-            AddedGames = new List<Developer>();
-            Encryption = new Encryption();
+            _steamId = steamId;
+            _xrpAddress = xrpAddress;
+            _addedGames = new List<Game>();
+            _encryption = new Encryption();
+        }
+
+        public void SetSteamId(ulong steamId)
+        {
+            _steamId = steamId;
+        }
+
+        public ulong GetSteamId()
+        {
+            return _steamId;
+        }
+
+        public void SetXRPAddress(string xrpAddress)
+        {
+            _xrpAddress = xrpAddress;
+        }
+
+        public string GetXRPAddress()
+        {
+            return _xrpAddress;
+        }
+
+        public Encryption GetEncryption()
+        {
+            return _encryption;
         }
 
         public string AddGame(uint AppId)
         {
-            Developer addedGame;
-            if (RewardEngine.RegisteredDeveloper(AppId, out addedGame))
+            Game addedGame;
+            if (RewardEngine.RegisteredGame(AppId, out addedGame))
             {
-                AddedGames.Add(addedGame);
-                return Encryption.Encrypt(SteamId.ToString() + "," + XRPAddress + "," + AppId.ToString(), false);
+                _addedGames.Add(addedGame);
+                return _encryption.Encrypt(_steamId.ToString() + "," + _xrpAddress + "," + AppId.ToString(), false);
             }
 
             return string.Empty;
         }
 
-        public bool RegisteredGame(uint appId)
+        public Game GetGame(uint appId)
         {
-            foreach (var game in AddedGames)
+            foreach (var game in _addedGames)
             {
-                if (game.AppId == appId)
+                if (game.GetAppId() == appId)
+                {
+                    return game;
+                }
+            }
+
+            return null;
+        }
+
+        public List<Game> GetGames()
+        {
+            return _addedGames;
+        }
+
+        public bool IsGameRegisteredToPlayer(uint appId)
+        {
+            foreach (var game in _addedGames)
+            {
+                if (game.GetAppId() == appId)
                 {
                     return true;
                 }

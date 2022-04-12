@@ -78,8 +78,8 @@ namespace EMBRS
                         uint appID;
                         if (uint.TryParse(appIDString, out appID))
                         {
-                            var newDeveloper = new Developer();
-                            newDeveloper.AppId = appID;
+                            var newDeveloper = new Developer(Settings.Developer);
+                            newDeveloper.AddGame(Settings.SteamGame, appID);
                             RewardEngine.Developers.Add(newDeveloper);
                         }
 
@@ -95,9 +95,7 @@ namespace EMBRS
                             Console.WriteLine("*** Please type in a valid XRP address ***");
                             var xrpAddress = Console.ReadLine();
 
-                            var newPlayer = new Player();
-                            newPlayer.SteamId = steamID;
-                            newPlayer.XRPAddress = xrpAddress;
+                            var newPlayer = new Player(steamID, xrpAddress);
                             RewardEngine.Players.Add(newPlayer);
                         }
 
