@@ -1,21 +1,28 @@
 ﻿{
-  "Developer": "Quarter Onion Games", //Developer of the rewards-based test game
-  "SteamGame": "Emberlight: Rekindled", //Name of the rewards-based test game
-  "SteamAppID": "", //Steam AppId of the rewards-based test game
-  "TestPlayer": "", //Steam vanity URL of player to test rewards system out (only needs the nickname and not the full URL)
-  "TestAddress": "", //XRPL address to test rewards system
-  "WebAPIKey": "", //Steam publisher Web API key required to test if TestPlayer is a valid player whom also owns the registered rewards-based game
-  "AzureString": "", //Azure connection string to access developer blobs holding game data or patches
-  "GameFilesLocation": "", //File location containing test game's current files or patch
+  "RestClientAddress": "https://xumm.app/api/v1", //Xumm API
+  "ApiKey": "", // API Key which can be obtained from the xumm Developer Console. KEEP THIS PRIVATE AND SAFE!
+  "ApiSecret": "", // API Secret which can be obtained from the xumm Developer Console. KEEP THIS PRIVATE AND SAFE!
   "WebSocketURL": "wss://xrplcluster.com/", //Main Net: 	wss://s1.ripple.com/  wss://xrplcluster.com/  Test Net: wss://s.altnet.rippletest.net/
-  "RewardAddress": "rGDaEAuTDrbecX3RHvWtNGPJ3vsghuHn4", //Address that holds the tokens for rewards
+  "RewardAddress": "r36AuN7zM1BP6v7MzfStXSipuvcvbhGRNf", //Address that holds the tokens for rewards
   "RewardSecret": "", //Secret to the rewards address. KEEP THIS PRIVATE AND SAFE!
   "CurrencyCode": "EMBRS", //ticker symbol of EMBRS token
   "IssuerAddress": "rPbKMFvHbdEGBog98UjZXRdUx37MFKMfxB", //Address that issued the tokens for rewards
+  "STXCurrencyCode": "STX", //ticker symbol of STX token
+  "STXIssuerAddress": "rSTAYKxF2K77ZLZ8GoAwTqPGaphAqMyXV", //Address that issued the tokens for staking
+  "USDCurrencyCode": "USD", //ticker symbol of USD (Gatehub) token
+  "USDIssuerAddress": "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq", //Address that issued the tokens for USD
+  "GuildID": "", //Discord server ID
+  "BotToken": "", //Discord bot token. KEEP THIS PRIVATE AND SAFE!
   "TransferFee": 0, //Usually not applicable. Leave at 0 if unsure. TransferRate of your token in %, must be between 0 and 100
-  "RewardTokenAmt": 0.000001, //amount to send in each rewards txn
+  "FaucetTokenAmt": 10, //amount to send in each faucet txn
+  "RewardTokenAmt": 100, //amount to send in each rewards txn
+  "MaxTipTokenAmt": 1000, //max amount to send in each rewards txn
+  "TipTokenAmt": 0.01, //amount to send in each tip txn
   "AccountLinesThrottle": 10, //Number of seconds between request calls. Recommended not to change. Lower settings could result in a block from web service hosts.
   "TxnThrottle": 1, //Number of seconds between request calls. Recommended not to change. Lower settings could result in a block from web service hosts.
   "FeeMultiplier": 1.1, //How many times above average fees to pay for reliable transactions
-  "MaximumFee": 11 //Maximum number of drops willing to pay for each transaction
+  "MaximumFee": 11, //Maximum number of drops willing to pay for each transaction
+  "MinCommandTime": 10.0, //Minimum time in seconds between commands
+  "MinTipTime": 60.0, //Minimum time in seconds between tip commands
+  "MinFaucetTime": 24.0 //Minimum time in hours between tip commands
 }

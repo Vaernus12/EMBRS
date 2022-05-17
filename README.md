@@ -1,51 +1,51 @@
 # EMBRS Forged
-EMBRS Forged is a platform on the XRP Ledger for game developers to provide a "Play-To-Earn" mechanic within their games
+Powered by the $EMBRS token, EMBRS Forged is a platform that is used to launch games from independent studios within the XRP Ledger. Studios will be able to easily add support for features ranging from Play-To-Earn, to supporting functional economies via selling items, land, and properties in-game as NFTs.
 
-## Features
+## Website
+- [EMBRS Platform](https://emberlight.quarteroniongames.com/platform/)
 
-- Simulate an incoming JSON message
-- Simulate an EMBRS payout with a valid SteamId
-- Do a test EMBRS payout with a valid SteamId and XRP Address
-- Register a new developer via Steam AppId
-- Register a new player via player's SteamId and XRP Address
+## TESTING Phase (Activated)
+Testing focuses on our currently active [Discord](https://discord.gg/quarteronion) bot which is allowing us to experiment with features that will exist in Core. Currently this includes earning via the EMBRS faucet, rewarding players in the Emberlight tournament, and tipping other community members. We will continue to test other features while building the Core web app.
 
-## Roadmap
+### Proof Of Concept Game (Launched)
+- [Emberlight](https://store.steampowered.com/app/1048880/Emberlight/)
 
-- [EMBRS Roadmap](https://emberlight.quarteroniongames.com/platform/)
+### Current Features
+- Daily faucet earning EMBRS
+- Weekly Emberlight tournament earning EMBRS
+- XRPL DEX swaps between EMBRS/XRP, EMBRS/USD, and USD/XRP trading pairs
+- Community tipping of EMBRS
 
-## Requirements
+## CORE Phase (QUARTER 2, 2023)
+Core focuses on Play-To-Earn. This phase will have the biggest impact on both game developers and players. Players can begin earning in their favorite games while developers require very minimal changes to their game’s code to support this.
 
-- [Visual Studio 2019 or greater](https://visualstudio.microsoft.com/downloads/)
+### Proof Of Concept Game (In Development)
+- [Emberlight: Rekindled](https://emberlight.quarteroniongames.com/game/)
 
-## Settings
+### Expected Features
+- Game distribution (either as a patch or full game via IPFS)
+- Play-To-Earn Module accessible by developers via API (games can access API to reward players in EMBRS or their own tokens)
+- Web platform and downloadable app (app required for game distribution)
+- Expansion of testing XRPL DEX swaps to allow swapping between EMBRS and each game's currency or token
 
-- **Developer**: Developer of the rewards-based test game
-- **SteamGame**: Name of the rewards-based test game
-- **SteamAppID**: Steam AppId of the rewards-based test game
-- **TestPlayer**: Steam vanity URL of player to test rewards system out (only needs the nickname and not the full URL)
-- **TestAddress**: XRPL address to test rewards system
-- **WebAPIKey**: Steam publisher Web API key - see [WebAPI Overview](https://partner.steamgames.com/doc/webapi_overview/auth)
-- **AzureString**: Azure connection string to access developer blobs holding game data or patches
-- **GameFilesLocation**: Location containing test game's current files or patch
-- **WebSocketURL**: Main Net: 	wss://s1.ripple.com/  wss://xrplcluster.com/  Test Net: wss://s.altnet.rippletest.net/
-- **RewardAddress**: Address that holds the tokens for rewards
-- **RewardSecret**: Secret to the rewards address. KEEP THIS PRIVATE AND SAFE!
-- **CurrencyCode**: Ticker symbol of EMBRS token (do not change)
-- **IssuerAddress**: Address that issued the tokens for rewards (do not change)
-- **TransferFee**: Usually not applicable. Leave at 0 if unsure. TransferRate of your token in %, must be between 0 and 100
-- **RewardTokenAmt**: Amount to send in each rewards txn
-- **AccountLinesThrottle**: Number of seconds between request calls. Recommended not to change. Lower settings could result in a block from web service hosts
-- **TxnThrottle**: Number of seconds between request calls. Recommended not to change. Lower settings could result in a block from web service hosts.
-- **FeeMultiplier**: How many times above average fees to pay for reliable transactions
-- **MaximumFee**: Maximum number of drops willing to pay for each transaction
+## EXPANSION Phase (QUARTER 4, 2023)
+Expansion focuses on features which enhance Play-To-Earn while providing more tools for both the community and game developers. Players can now earn NFTs from Steam achievements and dabble in E-Sports via tournaments. Game developers find new tools such as an asset database to help facilitate game production and further tap into the power of the XRP Ledger.
 
-## Getting Started
+### Proof Of Concept Game (In Development)
+- [Emberlight: Rekindled](https://emberlight.quarteroniongames.com/game/)
 
-- Ensure that the config/settings.json file is completed filled out (this normally would attach to the main XRP address providing EMBRS rewards, but can work on any address holding EMBRS provided RewardsAddress and RewardsSecret are correct)
-- Run the project in Visual Studio 2019
-- Option 1 will simulate an incoming JSON message (received from a game) and validates against public/private key
-- Option 2 will simulate validating the TestPlayer using Steamworks Web API to ensure they own SteamAppID and recently played it
-- Option 3 completes the same testing, but will send RewardTokenAmt to from RewardAddress to TestAddress
-- Option 4 will request an AppId (not currently validated) and add as a new developer
-- Option 5 will request a player's SteamId (not currently validated) and an XRP address (also not currently validated) and add as a new player
-- Option 6 will exit
+### Expected Features
+- Community hub to allow easier interactions between players and developers
+- E-Sports Module accessible by developers via API (coordinating tournaments and rewarding players)
+- Achievement-based Play-To-Earn Module accessible by developers via API (players can now earn NFTs by completing achievements)
+- NFT-based Asset Database for developers
+
+## ECONOMY Phase (QUARTER 3, 2025)
+Economy focuses on NFTs empowering functional economies. Games and metaverses can utilize the Economy module to allow players to earn via interacting with the world’s economy. This can range from running a business to selling off loot, with the items, land, and properties being NFTs that have real world value.
+
+### Proof Of Concept Game (Pre-production)
+- [Emberlight: Legacies](https://emberlight.quarteroniongames.com/game/)
+
+### Expected Features
+- Economy Module accessible by developers via API (utilizing NFTs for businesses, characters, items, land, property, etc. to simulate a functional economy)
+- Showcase Module accessible by developers via API (NFT creators can allow curation of their assets within games and metaverses such as in an art gallery or museum)
