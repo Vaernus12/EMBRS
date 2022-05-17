@@ -11,7 +11,7 @@ EMBRS is a platform on the XRP Ledger for game developers to provide a "Play-To-
 
 ## Roadmap
 
-- [EMBRS Roadmap](https://docs.google.com/document/d/1RzH8InGjHCagYb3XAnPLORcUUEZxDgvxURcFA20qGos/edit?usp=sharing)
+- [EMBRS Roadmap](https://emberlight.quarteroniongames.com/platform/)
 
 ## Requirements
 
