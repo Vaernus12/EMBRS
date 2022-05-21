@@ -25,6 +25,8 @@ namespace EMBRS_Discord
         private readonly XummPayloadClient _payloadClient;
         private readonly XummHttpClient _httpClient;
 
+        private readonly bool _sponsorRewards = false;
+
         public Commands(DiscordSocketClient discordClient, XummWebSocket webSocketClient, XummMiscAppStorageClient appStorageClient,
                         XummMiscClient miscClient, XummPayloadClient payloadClient, XummHttpClient httpClient)
         {
@@ -64,6 +66,15 @@ namespace EMBRS_Discord
                         var helpTask = Task.Run(async () =>
                         {
                             await HandleHelpCommand(command);
+                        });
+                        break;
+                    }
+                case "maintenance":
+                    {
+                        await Program.Log(new LogMessage(LogSeverity.Info, "Command", "maintenance"));
+                        var maintenanceTask = Task.Run(async () =>
+                        {
+                            await HandleMaintenanceCommand(command);
                         });
                         break;
                     }
@@ -174,7 +185,7 @@ namespace EMBRS_Discord
                     }
 
                     Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    await Database.Write();
+                    Database.IsDirty = true;
                 }
                 else
                 {
@@ -182,7 +193,7 @@ namespace EMBRS_Discord
                     if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
                     {
                         Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -195,7 +206,7 @@ namespace EMBRS_Discord
                 {
                     if (command.Channel.Name == "tournament" || command.Channel.Name == "testing")
                     {
-                        await command.RespondAsync("Tournament ending.", ephemeral: true);
+                        await command.DeferAsync(ephemeral: true);
 
                         var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
                         var tournamentRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament");
@@ -208,8 +219,6 @@ namespace EMBRS_Discord
                             await user.RemoveRolesAsync(roles);
                         }
 
-                        await command.FollowupAsync("Tournament ended.", ephemeral: true);
-
                         foreach (var user in Database.RegisteredUsers)
                         {
                             user.Value.TournamentWinner = false;
@@ -218,9 +227,9 @@ namespace EMBRS_Discord
                         }
 
                         var message = (string)command.Data.Options.First().Value;
-                        await command.FollowupAsync("Thank you to everyone that participated in the week " + message + " tournament! Sign-ups for week " + (int.Parse(message) + 1).ToString() + " will start momentarily. Check #announcements for details in a few.");
+                        await command.FollowupAsync("Thank you to everyone that participated in the week " + message + " Emberlight tournament! Sign-ups for week " + (int.Parse(message) + 1).ToString() + " will start tomorrow. Check #announcements for more details.");
 
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -253,7 +262,7 @@ namespace EMBRS_Discord
 
                     Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
                     Database.RegisteredUsers[userInfo.Id].LastFaucetTime = DateTime.UtcNow;
-                    await Database.Write();
+                    Database.IsDirty = true;
                 }
                 else
                 {
@@ -262,7 +271,7 @@ namespace EMBRS_Discord
                     {
                         Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
                         Database.RegisteredUsers[userInfo.Id].LastFaucetTime = DateTime.UtcNow;
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -273,10 +282,17 @@ namespace EMBRS_Discord
 
                 if (command.Channel.Name == "bot-commands" || command.Channel.Name == "testing")
                 {
-                    await command.RespondAsync("Beginning faucet process!", ephemeral: true);
-                    await XRPL.SendRewardAsync(command, null, userInfo, Settings.FaucetTokenAmt, false, false, true);
-                    Database.RegisteredUsers[userInfo.Id].EMBRSEarned += float.Parse(Settings.FaucetTokenAmt);
-                    await Database.Write();
+                    if (Database.RegisteredUsers[userInfo.Id].IsRegistered)
+                    {
+                        await command.DeferAsync(ephemeral: true);
+                        await XRPL.SendRewardAsync(command, null, userInfo, Settings.FaucetTokenAmt, false, false, true);
+                        Database.RegisteredUsers[userInfo.Id].EMBRSEarned += float.Parse(Settings.FaucetTokenAmt);
+                        Database.IsDirty = true;
+                    }
+                    else
+                    {
+                        await command.RespondAsync("You are not registered for faucet!", ephemeral: true);
+                    }
                 }
                 else
                 {
@@ -303,7 +319,7 @@ namespace EMBRS_Discord
                     }
 
                     Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    await Database.Write();
+                    Database.IsDirty = true;
                 }
                 else
                 {
@@ -311,7 +327,7 @@ namespace EMBRS_Discord
                     if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
                     {
                         Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -372,6 +388,63 @@ namespace EMBRS_Discord
             }
         }
 
+        private async Task HandleMaintenanceCommand(SocketSlashCommand command)
+        {
+            try
+            {
+                var userInfo = command.User;
+                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
+                {
+                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastCommandTime).TotalSeconds < Settings.MinCommandTime)
+                    {
+                        await command.RespondAsync("Not enough time between commands. Try again!", ephemeral: true);
+                        return;
+                    }
+
+                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
+                    Database.IsDirty = true;
+                }
+                else
+                {
+                    var newAccount = new Account(userInfo.Id, string.Empty);
+                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
+                    {
+                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
+                        Database.IsDirty = true;
+                    }
+                    else
+                    {
+                        await command.RespondAsync("Maintenance command failed. Try again!", ephemeral: true);
+                        return;
+                    }
+                }
+
+                if ((userInfo as SocketGuildUser).Roles.Any(r => r.Name == "Leads"))
+                {
+                    if (command.Channel.Name == "bot-commands" || command.Channel.Name == "testing")
+                    {
+                        var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
+                        var updateChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "updates");
+                        await updateChannel.SendMessageAsync("**EMBRS Forged bot is shutting down for maintenance!**");
+                        await command.RespondAsync("EMBRS maintenance ready", ephemeral: true);
+                        await Program.Shutdown();
+                    }
+                    else
+                    {
+                        await command.RespondAsync("Use in #bot-commands channel only!", ephemeral: true);
+                    }
+                }
+                else
+                {
+                    await command.RespondAsync("Admin-only command!", ephemeral: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+            }
+        }
+
         private async Task HandleRegisterCommand(SocketSlashCommand command)
         {
             try
@@ -386,7 +459,7 @@ namespace EMBRS_Discord
                     }
 
                     Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    await Database.Write();
+                    Database.IsDirty = true;
                 }
                 else
                 {
@@ -394,7 +467,7 @@ namespace EMBRS_Discord
                     if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
                     {
                         Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -411,13 +484,13 @@ namespace EMBRS_Discord
                         Database.RegisteredUsers[userInfo.Id].XrpAddress = xrpAddress;
                         Database.RegisteredUsers[userInfo.Id].IsRegistered = true;
                         await command.RespondAsync("You are registered with EMBRS bot!", ephemeral: true);
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
                         Database.RegisteredUsers[userInfo.Id].XrpAddress = xrpAddress;
                         await command.RespondAsync("You updated your XRP address in EMBRS bot!", ephemeral: true);
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                 }
                 else
@@ -445,7 +518,7 @@ namespace EMBRS_Discord
                     }
 
                     Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    await Database.Write();
+                    Database.IsDirty = true;
                 }
                 else
                 {
@@ -453,7 +526,7 @@ namespace EMBRS_Discord
                     if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
                     {
                         Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -469,10 +542,10 @@ namespace EMBRS_Discord
                         if (!Database.RegisteredUsers[userInfo.Id].ReceivedTournamentReward)
                         {
                             Database.RegisteredUsers[userInfo.Id].ReceivedTournamentReward = true;
-                            await command.RespondAsync("Beginning rewards process!", ephemeral: true);
+                            await command.DeferAsync(ephemeral: true);
                             await XRPL.SendRewardAsync(command, null, userInfo, Settings.RewardTokenAmt, true, false, false);
                             Database.RegisteredUsers[userInfo.Id].EMBRSEarned += float.Parse(Settings.RewardTokenAmt);
-                            await Database.Write();
+                            Database.IsDirty = true;
                         }
                         else
                         {
@@ -509,7 +582,7 @@ namespace EMBRS_Discord
                     }
 
                     Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    await Database.Write();
+                    Database.IsDirty = true;
                 }
                 else
                 {
@@ -517,7 +590,7 @@ namespace EMBRS_Discord
                     if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
                     {
                         Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -530,7 +603,7 @@ namespace EMBRS_Discord
                 {
                     if (command.Channel.Name == "winners" || command.Channel.Name == "testing")
                     {
-                        await command.RespondAsync("Handling select winner command!", ephemeral: true);
+                        await command.DeferAsync(ephemeral: true);
 
                         var amount = (Int64)command.Data.Options.First().Value;
                         var users = await command.Channel.GetUsersAsync().FlattenAsync<IUser>();
@@ -556,9 +629,6 @@ namespace EMBRS_Discord
                         var earlyAccessRole = guild.Roles.FirstOrDefault(x => x.Name == "Early Supporters");
 
                         var stringBuilder = new StringBuilder();
-                        stringBuilder.Append("Random tournament winners selected are:");
-                        stringBuilder.AppendLine();
-                        stringBuilder.AppendLine();
 
                         if (usersList.Count > 0)
                         {
@@ -571,25 +641,70 @@ namespace EMBRS_Discord
                                 stringBuilder.Append($"@{user.Username}#{user.Discriminator}");
                                 if (i == 0)
                                 {
-                                    stringBuilder.Append($" - 1000 EMBRS and early access slot to Emberlight: Rekindled!");
-                                    await XRPL.SendRewardAsync(command, null, user, "1000");
-                                    Database.RegisteredUsers[user.Id].EMBRSEarned += 100;
+                                    stringBuilder.Append($" - 1100 EMBRS and early access slot to Emberlight: Rekindled!");
+                                    if (Database.RegisteredUsers[user.Id].ReceivedTournamentReward)
+                                    {
+                                        await XRPL.SendRewardAsync(command, null, user, "1000");
+                                        Database.RegisteredUsers[user.Id].EMBRSEarned += 1000;
+                                    }
+                                    else
+                                    {
+                                        await XRPL.SendRewardAsync(command, null, user, "1100");
+                                        Database.RegisteredUsers[user.Id].EMBRSEarned += 1100;
+                                    }
+
                                     await user.AddRoleAsync(earlyAccessRole);
-                                    await Database.Write();
+                                    Database.IsDirty = true;
                                 }
                                 else
                                 {
-                                    stringBuilder.Append($" - Early access slot to Emberlight: Rekindled!");
+                                    stringBuilder.Append($" - 600 EMBRS and early access slot to Emberlight: Rekindled!");
+                                    if (Database.RegisteredUsers[user.Id].ReceivedTournamentReward)
+                                    {
+                                        await XRPL.SendRewardAsync(command, null, user, "500");
+                                        Database.RegisteredUsers[user.Id].EMBRSEarned += 500;
+                                    }
+                                    else
+                                    {
+                                        await XRPL.SendRewardAsync(command, null, user, "600");
+                                        Database.RegisteredUsers[user.Id].EMBRSEarned += 600;
+                                    }
+
+                                    Database.RegisteredUsers[user.Id].ReceivedTournamentReward = true;
+
                                     await user.AddRoleAsync(earlyAccessRole);
+                                    Database.IsDirty = true;
                                 }
                                 stringBuilder.AppendLine();
                             }
+
+                            if(usersList.Count > 0)
+                            {
+                                for(int i = 0; i < usersList.Count; i++)
+                                {
+                                    var user = usersList[i] as SocketGuildUser;
+                                    stringBuilder.Append($"@{user.Username}#{user.Discriminator}");
+                                    stringBuilder.Append($" - 100 EMBRS!");
+
+                                    if (!Database.RegisteredUsers[user.Id].ReceivedTournamentReward)
+                                    {
+                                        await XRPL.SendRewardAsync(command, null, user, "100");
+                                        Database.RegisteredUsers[user.Id].EMBRSEarned += 100;
+                                        Database.RegisteredUsers[user.Id].ReceivedTournamentReward = true;
+                                    }
+
+                                    stringBuilder.AppendLine();
+                                }
+                            }
                         }
 
-                        stringBuilder.AppendLine();
-                        stringBuilder.Append("Congratulations!");
-                        await command.FollowupAsync(stringBuilder.ToString());
+                        var embedBuiler = new EmbedBuilder()
+                            .WithTitle("Tournament Results")
+                            .WithColor(Color.Orange)
+                            .AddField("Winners", stringBuilder.ToString())
+                            .AddField("Congratulations!", "We will be ending the Emberlight tournament shortly! If you have any questions, please let us know here!");
 
+                        await command.FollowupAsync(embed: embedBuiler.Build());
                     }
                     else
                     {
@@ -621,7 +736,7 @@ namespace EMBRS_Discord
                     }
 
                     Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    await Database.Write();
+                    Database.IsDirty = true;
                 }
                 else
                 {
@@ -629,7 +744,7 @@ namespace EMBRS_Discord
                     if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
                     {
                         Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -654,7 +769,7 @@ namespace EMBRS_Discord
                             await guildUser.AddRoleAsync(winnerRole);
                             await command.RespondAsync($"A winner is {guildUser.Username}#{guildUser.Discriminator}!");
                             Database.RegisteredUsers[guildUser.Id].TournamentWinner = true;
-                            await Database.Write();
+                            Database.IsDirty = true;
                         }
                     }
                     else
@@ -687,7 +802,7 @@ namespace EMBRS_Discord
                     }
 
                     Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    await Database.Write();
+                    Database.IsDirty = true;
                 }
                 else
                 {
@@ -695,7 +810,7 @@ namespace EMBRS_Discord
                     if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
                     {
                         Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -708,16 +823,18 @@ namespace EMBRS_Discord
                 {
                     if (command.Channel.Name == "tournament" || command.Channel.Name == "testing")
                     {
-                        var achievement = (string)command.Data.Options.First().Value;
+                        var achievement = (string)command.Data.Options.SingleOrDefault(r => r.Name == "achievement").Value;
+                        var week = (string)command.Data.Options.SingleOrDefault(r => r.Name == "week").Value;
+
 
                         var stringBuilder = new StringBuilder();
-                        stringBuilder.Append("The tournament has started! This week's achievement is: ");
+                        stringBuilder.Append("**The Emberlight tournament has started! Week " + week + "'s achievement is: **");
                         stringBuilder.AppendLine();
                         stringBuilder.AppendLine();
                         stringBuilder.Append("**" + achievement + "**");
                         stringBuilder.AppendLine();
                         stringBuilder.AppendLine();
-                        stringBuilder.Append("Good luck!");
+                        stringBuilder.Append("**Good luck!**");
                         await command.RespondAsync(stringBuilder.ToString());
                     }
                     else
@@ -750,7 +867,7 @@ namespace EMBRS_Discord
                     }
 
                     Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    await Database.Write();
+                    Database.IsDirty = true;
                 }
                 else
                 {
@@ -758,7 +875,7 @@ namespace EMBRS_Discord
                     if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
                     {
                         Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -769,7 +886,7 @@ namespace EMBRS_Discord
 
                 if (command.Channel.Name == "bot-commands" || command.Channel.Name == "testing")
                 {
-                    await command.RespondAsync("Getting EMBRS status...", ephemeral: true);
+                    await command.DeferAsync(ephemeral: true);
 
                     if (Database.RegisteredUsers[userInfo.Id].IsRegistered)
                     {
@@ -854,7 +971,7 @@ namespace EMBRS_Discord
 
                     Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
                     Database.RegisteredUsers[userInfo.Id].LastTipTime = DateTime.UtcNow;
-                    await Database.Write();
+                    Database.IsDirty = true;
                 }
                 else
                 {
@@ -863,7 +980,7 @@ namespace EMBRS_Discord
                     {
                         Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
                         Database.RegisteredUsers[userInfo.Id].LastTipTime = DateTime.UtcNow;
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -880,7 +997,7 @@ namespace EMBRS_Discord
 
                     if (Database.RegisteredUsers[userInfo.Id].IsRegistered)
                     {
-                        await command.RespondAsync($"Starting swap...", ephemeral: true);
+                        await command.DeferAsync(ephemeral: true);
 
                         XummPayloadResponse createdPayload = null;
 
@@ -1035,7 +1152,7 @@ namespace EMBRS_Discord
                                     if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
                                     {
                                         await command.FollowupAsync($"Swap was resolved and signed!", ephemeral: true);
-                                        await Database.Write();
+                                        Database.IsDirty = true;
                                         break;
                                     }
                                     else if (getPayload.Meta.Resolved && !getPayload.Meta.Signed)
@@ -1069,7 +1186,7 @@ namespace EMBRS_Discord
                                     if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
                                     {
                                         await command.FollowupAsync($"Swap was resolved and signed!", ephemeral: true);
-                                        await Database.Write();
+                                        Database.IsDirty = true;
                                         break;
                                     }
                                     else if (getPayload.Meta.Resolved && !getPayload.Meta.Signed)
@@ -1125,7 +1242,7 @@ namespace EMBRS_Discord
 
                     Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
                     Database.RegisteredUsers[userInfo.Id].LastTipTime = DateTime.UtcNow;
-                    await Database.Write();
+                    Database.IsDirty = true;
                 }
                 else
                 {
@@ -1134,7 +1251,7 @@ namespace EMBRS_Discord
                     {
                         Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
                         Database.RegisteredUsers[userInfo.Id].LastTipTime = DateTime.UtcNow;
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -1143,126 +1260,119 @@ namespace EMBRS_Discord
                     }
                 }
 
-                if (command.Channel.Name == "lounge" || command.Channel.Name == "testing")
+                var user = (SocketGuildUser)command.Data.Options.SingleOrDefault(r => r.Name == "user").Value;
+                var amount = (double)command.Data.Options.SingleOrDefault(r => r.Name == "amount").Value;
+
+                if (Database.RegisteredUsers[userInfo.Id].IsRegistered && Database.RegisteredUsers[user.Id].IsRegistered)
                 {
-                    var user = (SocketGuildUser)command.Data.Options.SingleOrDefault(r => r.Name == "user").Value;
-                    var amount = (double)command.Data.Options.SingleOrDefault(r => r.Name == "amount").Value;
-
-                    if (Database.RegisteredUsers[userInfo.Id].IsRegistered && Database.RegisteredUsers[user.Id].IsRegistered)
+                    var tipAmount = string.Empty;
+                    if ((userInfo as SocketGuildUser).Roles.Any(r => r.Name == "Leads"))
                     {
-                        var tipAmount = string.Empty;
-                        if ((userInfo as SocketGuildUser).Roles.Any(r => r.Name == "Leads"))
-                        {
-                            tipAmount = Math.Min(amount, float.Parse(Settings.MaxTipTokenAmt)).ToString();
-                            await command.RespondAsync($"You are tipping {tipAmount} EMBRS to {user.Username}#{user.Discriminator}!", ephemeral: true);
-                            await XRPL.SendRewardAsync(command, userInfo, user, tipAmount, false, true, false);
-                            Database.RegisteredUsers[user.Id].EMBRSEarned += float.Parse(tipAmount);
-                            await Database.Write();
-                        }
-                        else
-                        {
-                            await command.RespondAsync($"You are tipping {amount} EMBRS to {user.Username}#{user.Discriminator}!", ephemeral: true);
-
-                            var destination = Database.RegisteredUsers[user.Id].XrpAddress;
-                            var currencyAmount = new Currency { CurrencyCode = Settings.CurrencyCode, Issuer = Settings.IssuerAddress, Value = amount.ToString() };
-
-                            var converter = new CurrencyConverter();
-                            var result = JsonConvert.SerializeObject(currencyAmount, converter);
-
-                            var payload = new XummPostJsonPayload("{ \"TransactionType\": \"Payment\", " +
-                                                                    "\"Destination\": \"" + destination + "\", " +
-                                                                    "\"Amount\": " + result + " }");
-
-                            payload.Options = new XummPayloadOptions();
-                            payload.Options.Expire = 5;
-                            payload.Options.Submit = true;
-
-                            payload.CustomMeta = new XummPayloadCustomMeta();
-                            payload.CustomMeta.Instruction = "Tipping " + amount.ToString() + " EMBRS to " + destination + " (" + user.Username + "#" + user.Discriminator + ")";
-
-                            var createdPayload = await _payloadClient.CreateAsync(payload);
-
-                            // IF MOBILE, PUSH TO XUMM APP
-                            if (user.ActiveClients.Any(r => r == ClientType.Mobile))
-                            {
-                                var embedBuiler = new EmbedBuilder()
-                                                    .WithUrl(createdPayload.Next.Always)
-                                                    .WithDescription("Open In Xumm Wallet")
-                                                    .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
-                                                    .WithTitle("EMBRS Sign Request");
-                                await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
-
-                                var getPayload = await _payloadClient.GetAsync(createdPayload);
-                                while (!getPayload.Meta.Expired)
-                                {
-                                    if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
-                                    {
-                                        await command.FollowupAsync($"**{userInfo.Username}#{userInfo.Discriminator} sent {user.Username}#{user.Discriminator} a tip of {amount} EMBRS!**");
-                                        Database.RegisteredUsers[user.Id].EMBRSEarned += (float)amount;
-                                        await Database.Write();
-                                        break;
-                                    }
-                                    else if (getPayload.Meta.Resolved && !getPayload.Meta.Signed)
-                                    {
-                                        await command.FollowupAsync($"Tip was cancelled by user", ephemeral: true);
-                                        break;
-                                    }
-
-                                    Thread.Sleep(Settings.TxnThrottle * 3000);
-                                    getPayload = await _payloadClient.GetAsync(createdPayload);
-                                }
-
-                                if (getPayload.Meta.Expired)
-                                {
-                                    await command.FollowupAsync($"Tip sign request expired", ephemeral: true);
-                                }
-                            }
-                            else // IF NOT MOBILE, PUSH FOLLOWUP WITH PNG TO QR SCAN AND SIGN
-                            {
-                                var qrPNG = createdPayload.Refs.QrPng;
-                                var embedBuiler = new EmbedBuilder()
-                                                    .WithImageUrl(qrPNG)
-                                                    .WithDescription("Scan In Xumm Wallet")
-                                                    .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
-                                                    .WithTitle("EMBRS Sign Request");
-                                await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
-
-                                var getPayload = await _payloadClient.GetAsync(createdPayload);
-                                while (!getPayload.Meta.Expired)
-                                {
-                                    if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
-                                    {
-                                        await command.FollowupAsync($"**{userInfo.Username}#{userInfo.Discriminator} sent {user.Username}#{user.Discriminator} a tip of {amount} EMBRS!**");
-                                        Database.RegisteredUsers[user.Id].EMBRSEarned += (float)amount;
-                                        await Database.Write();
-                                        break;
-                                    }
-                                    else if (getPayload.Meta.Resolved && !getPayload.Meta.Signed)
-                                    {
-                                        await command.FollowupAsync($"Tip was cancelled by user", ephemeral: true);
-                                        break;
-                                    }
-
-                                    Thread.Sleep(Settings.TxnThrottle * 3000);
-                                    getPayload = await _payloadClient.GetAsync(createdPayload);
-                                }
-
-                                if (getPayload.Meta.Expired)
-                                {
-                                    await command.FollowupAsync($"Tip sign request expired", ephemeral: true);
-                                }
-                            }
-                        }
+                        tipAmount = Math.Min(amount, float.Parse(Settings.MaxTipTokenAmt)).ToString();
+                        await command.DeferAsync(ephemeral: true);
+                        await XRPL.SendRewardAsync(command, userInfo, user, tipAmount, false, true, false);
+                        Database.RegisteredUsers[user.Id].EMBRSEarned += float.Parse(tipAmount);
+                        Database.IsDirty = true;
                     }
                     else
                     {
-                        await command.RespondAsync("User(s) are not registered for tips!", ephemeral: true);
+                        await command.DeferAsync(ephemeral: true);
+
+                        var destination = Database.RegisteredUsers[user.Id].XrpAddress;
+                        var currencyAmount = new Currency { CurrencyCode = Settings.CurrencyCode, Issuer = Settings.IssuerAddress, Value = amount.ToString() };
+
+                        var converter = new CurrencyConverter();
+                        var result = JsonConvert.SerializeObject(currencyAmount, converter);
+
+                        var payload = new XummPostJsonPayload("{ \"TransactionType\": \"Payment\", " +
+                                                                "\"Destination\": \"" + destination + "\", " +
+                                                                "\"Amount\": " + result + " }");
+
+                        payload.Options = new XummPayloadOptions();
+                        payload.Options.Expire = 5;
+                        payload.Options.Submit = true;
+
+                        payload.CustomMeta = new XummPayloadCustomMeta();
+                        payload.CustomMeta.Instruction = "Tipping " + amount.ToString() + " EMBRS to " + destination + " (" + user.Username + "#" + user.Discriminator + ")";
+
+                        var createdPayload = await _payloadClient.CreateAsync(payload);
+
+                        // IF MOBILE, PUSH TO XUMM APP
+                        if (user.ActiveClients.Any(r => r == ClientType.Mobile))
+                        {
+                            var embedBuiler = new EmbedBuilder()
+                                                .WithUrl(createdPayload.Next.Always)
+                                                .WithDescription("Open In Xumm Wallet")
+                                                .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                                                .WithTitle("EMBRS Sign Request");
+                            await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
+
+                            var getPayload = await _payloadClient.GetAsync(createdPayload);
+                            while (!getPayload.Meta.Expired)
+                            {
+                                if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
+                                {
+                                    await command.FollowupAsync($"**{userInfo.Username}#{userInfo.Discriminator} sent {user.Username}#{user.Discriminator} a tip of {amount} EMBRS!**");
+                                    Database.RegisteredUsers[user.Id].EMBRSEarned += (float)amount;
+                                    Database.IsDirty = true;
+                                    break;
+                                }
+                                else if (getPayload.Meta.Resolved && !getPayload.Meta.Signed)
+                                {
+                                    await command.FollowupAsync($"Tip was cancelled by user", ephemeral: true);
+                                    break;
+                                }
+
+                                Thread.Sleep(Settings.TxnThrottle * 3000);
+                                getPayload = await _payloadClient.GetAsync(createdPayload);
+                            }
+
+                            if (getPayload.Meta.Expired)
+                            {
+                                await command.FollowupAsync($"Tip sign request expired", ephemeral: true);
+                            }
+                        }
+                        else // IF NOT MOBILE, PUSH FOLLOWUP WITH PNG TO QR SCAN AND SIGN
+                        {
+                            var qrPNG = createdPayload.Refs.QrPng;
+                            var embedBuiler = new EmbedBuilder()
+                                                .WithImageUrl(qrPNG)
+                                                .WithDescription("Scan In Xumm Wallet")
+                                                .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                                                .WithTitle("EMBRS Sign Request");
+                            await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
+
+                            var getPayload = await _payloadClient.GetAsync(createdPayload);
+                            while (!getPayload.Meta.Expired)
+                            {
+                                if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
+                                {
+                                    await command.FollowupAsync($"**{userInfo.Username}#{userInfo.Discriminator} sent {user.Username}#{user.Discriminator} a tip of {amount} EMBRS!**");
+                                    Database.RegisteredUsers[user.Id].EMBRSEarned += (float)amount;
+                                    Database.IsDirty = true;
+                                    break;
+                                }
+                                else if (getPayload.Meta.Resolved && !getPayload.Meta.Signed)
+                                {
+                                    await command.FollowupAsync($"Tip was cancelled by user", ephemeral: true);
+                                    break;
+                                }
+
+                                Thread.Sleep(Settings.TxnThrottle * 3000);
+                                getPayload = await _payloadClient.GetAsync(createdPayload);
+                            }
+
+                            if (getPayload.Meta.Expired)
+                            {
+                                await command.FollowupAsync($"Tip sign request expired", ephemeral: true);
+                            }
+                        }
                     }
                 }
                 else
-                {
-                    await command.RespondAsync("Use in #lounge channel only!", ephemeral: true);
-                }
+                    {
+                        await command.RespondAsync("User(s) are not registered for tips!", ephemeral: true);
+                    }
             }
             catch (Exception ex)
             {
@@ -1284,7 +1394,7 @@ namespace EMBRS_Discord
                     }
 
                     Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    await Database.Write();
+                    Database.IsDirty = true;
                 }
                 else
                 {
@@ -1292,7 +1402,7 @@ namespace EMBRS_Discord
                     if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
                     {
                         Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -1316,7 +1426,7 @@ namespace EMBRS_Discord
                             await (userInfo as SocketGuildUser).AddRoleAsync(tournamentRole);
                             await command.RespondAsync("You are signed-up for this week's tournament! Check #tournament for more details.", ephemeral: true);
                             Database.RegisteredUsers[userInfo.Id].InTournament = true;
-                            await Database.Write();
+                            Database.IsDirty = true;
                         }
                     }
                     else
@@ -1349,7 +1459,7 @@ namespace EMBRS_Discord
                     }
 
                     Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    await Database.Write();
+                    Database.IsDirty = true;
                 }
                 else
                 {
@@ -1357,7 +1467,7 @@ namespace EMBRS_Discord
                     if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
                     {
                         Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -1389,7 +1499,7 @@ namespace EMBRS_Discord
                         Database.RegisteredUsers[userInfo.Id].ReceivedTournamentReward = false;
                         Database.RegisteredUsers[userInfo.Id].InTournament = false;
 
-                        await Database.Write();
+                        Database.IsDirty = true;
                     }
                 }
                 else
