@@ -24,5 +24,7 @@
   "MaximumFee": 11, //Maximum number of drops willing to pay for each transaction
   "MinCommandTime": 10.0, //Minimum time in seconds between commands
   "MinTipTime": 60.0, //Minimum time in seconds between tip commands
-  "MinFaucetTime": 24.0 //Minimum time in hours between tip commands
+  "MinFaucetTime": 24.0, //Minimum time in hours between tip commands
+  "ThreadTimeInDays": 30.0, //Expiration of a governance thread in days
+  "IdleThreadTimeToDelete": 7.0 //Deletion of an idle governance thread in days
 }

@@ -27,17 +27,11 @@ namespace EMBRS
         private static bool _running = false;
         private static bool _ready = false;
 
-        private static bool _sundayMessage = false;
-        private static bool _mondayMessage = false;
-        private static bool _tuesdayTournamentMessage = false;
-        private static bool _wednesdayTournamentMessage = false;
-        private static bool _thursdayTournamentMessage = false;
-        private static bool _fridayTournamentMessage = false;
-        private static bool _saturdayMessage = false;
+        private static double _timeBetweenDatabaseWritesInMinutes = 10;
+        public static DateTime _timeSinceLastDatabaseWrite = DateTime.UtcNow;
 
         private static double _timeBetweenMessagesInHours = 8;
         private static List<string> _randomMessages = new List<string>();
-        private static DateTime _timeSinceLastMessage = DateTime.MinValue;
 
         static Task Main(string[] args)
         {
@@ -64,34 +58,37 @@ namespace EMBRS
             _discordClient.Log += Log;
             _running = true;
 
-            _randomMessages.Add("You can play Emberlight for free! Download the game at: https://store.steampowered.com/app/1048880/Emberlight/");
+            _randomMessages.Add("You can play Emberlight for free! Download the game at: <https://store.steampowered.com/app/1048880/Emberlight/>");
             _randomMessages.Add("Emberlight tournaments run weekly! You can win EMBRS just for participating, with special prizes randomly drawn on Mondays! Sign-ups are between Tuesday and Thursday. The tournament itself is between Friday night to Monday morning. Use the /tournament command to sign-up!");
             _randomMessages.Add("Having trouble using the EMBRS commands? You can use the /help command to get a list of all supported commands I provide and the channels they can be used in!");
             _randomMessages.Add("Don't forget to /register with me the XRP address you'd like to use! I have some really cool features like the daily faucet (free EMBRS!), DEX swaps (between EMBRS, XRP, and GateHub USD), and sending/receiving EMBRS tips!");
-            _randomMessages.Add("Want to learn more about how to play Emberlight? You can ask the team (and our awesome community) in the #emberlight channel. Also check out the playthroughs made by Mike at: https://www.youtube.com/channel/UC9CAwUdVLJYVGpxNO8L2ZAQ");
-            _randomMessages.Add("Did you know that Mike has started streaming Emberlight a few times per week? Follow him at https://www.twitch.tv/mbhahn to get updates when he goes live!");
-            _randomMessages.Add("Want to stay up to date with everything we're doing? Come follow us on Twitter at: https://twitter.com/quarteronion");
-            _randomMessages.Add("Did you know we have EMBRS merch? Created and curated by XRPLMerch, you can find it at https://embrs.xrplmerch.com/product-category/embrs/ and we highly recommend you follow Codeward (https://twitter.com/Codeward1) and XRPLMerch (https://twitter.com/XRPLMerch) on Twitter!");
+            _randomMessages.Add("Want to learn more about how to play Emberlight? You can ask the team (and our awesome community) in the #emberlight channel. Also check out the playthroughs made by Mike at: <https://www.youtube.com/channel/UC9CAwUdVLJYVGpxNO8L2ZAQ>");
+            _randomMessages.Add("Did you know that Mike has started streaming Emberlight a few times per week? Follow him at <https://www.twitch.tv/mbhahn> to get updates when he goes live!");
+            _randomMessages.Add("Want to stay up to date with everything we're doing? Come follow us on Twitter at: <https://twitter.com/quarteronion>");
+            _randomMessages.Add("Did you know we have EMBRS merch? Created and curated by XRPLMerch, you can find it at <https://embrs.xrplmerch.com/product-category/embrs/> and we highly recommend you follow Codeward (<https://twitter.com/Codeward1>) and XRPLMerch (<https://twitter.com/XRPLMerch>) on Twitter!");
             _randomMessages.Add("EMBRS Forged is an XRP community effort, and we recently discussed the concept of governance in #embrs. All EMBRS holders will have a say in my progression via governance topics and voting!");
-            _randomMessages.Add("We recently launched the EMBRS Forged platform website breaking down our plans as well as the general roadmap! You can check it out at: https://emberlight.quarteroniongames.com/platform/");
-            _randomMessages.Add("What are EMBRS and why do I want them, oh wonderful bot? Glad you asked, hypothetical person. A breakdown of the EMBRS token can be found at: https://emberlight.quarteroniongames.com/embers/");
-            _randomMessages.Add("The EMBRS pool, powered by the awesome StaykX platform, is going live soon! Have a bunch of EMBRS sitting around from all your tournament winnings, and want to earn from them? Please make sure you're all setup if you want to stayk your EMBRS by visiting: https://staykx.com/");
+            _randomMessages.Add("We recently launched the EMBRS Forged platform website breaking down our plans as well as the general roadmap! You can check it out at: <https://emberlight.quarteroniongames.com/platform/>");
+            _randomMessages.Add("What are EMBRS and why do I want them, oh wonderful bot? Glad you asked, hypothetical person. A breakdown of the EMBRS token can be found at: <https://emberlight.quarteroniongames.com/embers/>");
+            _randomMessages.Add("The EMBRS pool, powered by the awesome StaykX platform, is going live soon! Have a bunch of EMBRS sitting around from all your tournament winnings, and want to earn from them? Please make sure you're all setup if you want to stayk your EMBRS by visiting: <https://staykx.com/>");
             _randomMessages.Add("We still don't know how the duel process works (anchor beats credit card????), but we have a really fun bot called Epic RPG in our #gameroom channel. Looking to pass time between the faucet and weekly tournament? Come join the devs and community in there!");
             _randomMessages.Add("Want an early access slot to Emberlight: Rekindled? Come join the tournament and we have providing a handful of slots each week along with a handful of other awesome prizes!");
             _randomMessages.Add("That !rank thing we all see in #bot-commands through MEE6? This currently unlocks roles within our server. Higher roles provide more access, with the coveted Elite role giving you an early access slot in Emberlight: Rekindled!");
             _randomMessages.Add("Posted an awesome tweet about me or everything else we're doing? Let us know here and you just might earn yourself some EMBRS in the process!");
             _randomMessages.Add("Calling all of our tournament participants (and future participants)! If you know of anyone that would be interested in joining in, please invite them to our Discord server! The more participants, the more awesome sponsors we'll be able to find to reward you! Let us know if you found someone and you just might earn yourself some EMBRS as well!");
-            _randomMessages.Add("Looking for the EMBRS trustline? Here you go: https://xrpl.services/?issuer=rPbKMFvHbdEGBog98UjZXRdUx37MFKMfxB&currency=454D425253000000000000000000000000000000&limit=100000000");
-            _randomMessages.Add("Where can I get EMBRS? We are currently an XRPL DEX exclusive at: https://sologenic.org/trade?network=mainnet&market=454D425253000000000000000000000000000000%2BrPbKMFvHbdEGBog98UjZXRdUx37MFKMfxB%2FXRP");
-            _randomMessages.Add("Did you know that EMBRS is blackholed, KYCed through XUMM, and we have completed a self assessment through the XRP Ledger Foundation? You can find the self assessment at: https://foundation.xrpl.org/token-self-assessments/454d425253000000000000000000000000000000-rpbkmfvhbdegbog98ujzxrdux37mfkmfxb-r1/");
-            _randomMessages.Add("What is Play-To-Earn and why are we bothering to tackle it within EMBRS Forged? Play-To-Earn allows you to earn while playing your favorite games, and we are taking it a step further by establishing 'Gaming-As-An-Income' within our platform! You can read more in our whitepaper at: https://emberlight.quarteroniongames.com/wp-content/uploads/sites/5/2022/02/EmbersWhitepaperV1-1.pdf");
+            _randomMessages.Add("Looking for the EMBRS trustline? Here you go: <https://xrpl.services/?issuer=rPbKMFvHbdEGBog98UjZXRdUx37MFKMfxB&currency=454D425253000000000000000000000000000000&limit=100000000>");
+            _randomMessages.Add("Where can I get EMBRS? We are currently an XRPL DEX exclusive at: <https://sologenic.org/trade?network=mainnet&market=454D425253000000000000000000000000000000%2BrPbKMFvHbdEGBog98UjZXRdUx37MFKMfxB%2FXRP>");
+            _randomMessages.Add("Did you know that EMBRS is blackholed, KYCed through XUMM, and we have completed a self assessment through the XRP Ledger Foundation? You can find the self assessment at: <https://foundation.xrpl.org/token-self-assessments/454d425253000000000000000000000000000000-rpbkmfvhbdegbog98ujzxrdux37mfkmfxb-r1/>");
+            _randomMessages.Add("What is Play-To-Earn and why are we bothering to tackle it within EMBRS Forged? Play-To-Earn allows you to earn while playing your favorite games, and we are taking it a step further by establishing 'Gaming-As-An-Income' within our platform! You can read more in our whitepaper at: <https://emberlight.quarteroniongames.com/wp-content/uploads/sites/5/2022/02/EmbersWhitepaperV1-1.pdf>");
             _randomMessages.Add("Am I an NFT project? No. Our first two phases of EMBRS Forged are strictly Play-To-Earn (via EMBRS and partner tokens) and do not involve NFTs at all! However, we do have plans to utilize NFTs in awesome ways as we expand the platform.");
-            _randomMessages.Add("Registered with me? Don't forget to run the daily /faucet command to earn some EMBRS!");
+            _randomMessages.Add("Registered with me? We have the /faucet command which you can run daily to earn some EMBRS!");
         }
 
         private async Task MainAsync()
         {
             await Database.Initialize();
+            _discordClient.ChannelDestroyed += HandleChannelDestroyedAsync;
+            _discordClient.MessageDeleted += HandleMessageDeletedAsync;
+            _discordClient.MessageReceived += HandleMessageReceivedAsync;
             _discordClient.Ready += HandleClientReadyAsync;
             _discordClient.SlashCommandExecuted += _commands.HandleSlashCommandAsync;
             await _discordClient.LoginAsync(TokenType.Bot, Settings.BotToken);
@@ -111,14 +108,23 @@ namespace EMBRS
 
         private async Task LoopTasks()
         {
+            // DATABASE
             if (Database.IsDirty)
             {
                 await Database.Write();
                 Database.IsDirty = false;
             }
 
+            if ((DateTime.UtcNow - _timeSinceLastDatabaseWrite).TotalMinutes >= _timeBetweenDatabaseWritesInMinutes)
+            {
+                await Database.Write();
+                Database.IsDirty = false;
+                _timeSinceLastDatabaseWrite = DateTime.UtcNow;
+            }
+
             try
             {
+                // MESSAGING
                 switch (DateTime.UtcNow.DayOfWeek)
                 {
                     case DayOfWeek.Sunday:
@@ -131,67 +137,76 @@ namespace EMBRS
                         }
                     case DayOfWeek.Tuesday:
                         {
-                            if (!_tuesdayTournamentMessage)
+                            if (!Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).TuesdayTournamentMessage)
                             {
                                 var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
                                 var emberlightChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "emberlight");
                                 await emberlightChannel.SendMessageAsync("**Emberlight tournament sign-ups have started! Use the /tournament command to sign-up. This week's tournament begins Friday night. If you have not done so already, you can register with me using the /register command!**");
-                                _tuesdayTournamentMessage = true;
+                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).TuesdayTournamentMessage = true;
+                                Database.IsDirty = true;
                             }
                             break;
                         }
                     case DayOfWeek.Wednesday:
                         {
-                            if (!_wednesdayTournamentMessage)
+                            if (!Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).WednesdayTournamentMessage)
                             {
-                                _tuesdayTournamentMessage = false;
+                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).TuesdayTournamentMessage = false;
                                 var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
                                 var emberlightChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "emberlight");
                                 await emberlightChannel.SendMessageAsync("**Emberlight tournament sign-ups are still going on! Who else will be joining in this week?!**");
-                                _wednesdayTournamentMessage = true;
+                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).WednesdayTournamentMessage = true;
+                                Database.IsDirty = true;
                             }
                             break;
                         }
                     case DayOfWeek.Thursday:
                         {
-                            if (!_thursdayTournamentMessage)
+                            if (!Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).ThursdayTournamentMessage)
                             {
-                                _wednesdayTournamentMessage = false;
+                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).WednesdayTournamentMessage = false;
                                 var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
                                 var emberlightChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "emberlight");
                                 await emberlightChannel.SendMessageAsync("**Last day for Emberlight tournament sign-ups this week! Don't miss out to win EMBRS, early access to Emberlight: Rekindled, and special prizes provided by our sponsors!**");
-                                _thursdayTournamentMessage = true;
+                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).ThursdayTournamentMessage = true;
+                                Database.IsDirty = true;
                             }
                             break;
                         }
                     case DayOfWeek.Friday:
                         {
-                            if (!_fridayTournamentMessage)
+                            if (!Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).FridayTournamentMessage)
                             {
-                                _thursdayTournamentMessage = false;
+                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).ThursdayTournamentMessage = false;
                                 var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
                                 var emberlightChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "emberlight");
                                 await emberlightChannel.SendMessageAsync("**Emberlight tournament sign-ups have ended. If you missed out, no worries! You can earn EMBRS via the /faucet command while you wait!**");
-                                _fridayTournamentMessage = true;
+                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).FridayTournamentMessage = true;
+                                Database.IsDirty = true;
                             }
                             break;
                         }
                     case DayOfWeek.Saturday:
                         {
-                            _fridayTournamentMessage = false;
+                            Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).FridayTournamentMessage = false;
+                            Database.IsDirty = true;
                             break;
                         }
                 }
 
-                if ((DateTime.UtcNow - _timeSinceLastMessage).TotalHours >= _timeBetweenMessagesInHours)
+                if ((DateTime.UtcNow - Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).TimeSinceLastMessage).TotalHours >= _timeBetweenMessagesInHours)
                 {
                     var rng = new System.Random();
                     var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
                     var generalChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "general");
                     var randomIndex = rng.Next(0, _randomMessages.Count);
                     await generalChannel.SendMessageAsync(_randomMessages[randomIndex]);
-                    _timeSinceLastMessage = DateTime.UtcNow;
+                    Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).TimeSinceLastMessage = DateTime.UtcNow;
+                    Database.IsDirty = true;
                 }
+
+                // THREAD DELETION
+                await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).TestAllThreads(_discordClient);
             }
             catch (Exception ex)
             {
@@ -232,7 +247,76 @@ namespace EMBRS
             Console.ResetColor();
 
             return Task.CompletedTask;
-        }        
+        }
+
+        private async Task HandleChannelDestroyedAsync(SocketChannel arg)
+        {
+            try
+            {
+                var channelId = arg.Id;
+                if (await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId))
+                {
+                    await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).DeleteThread(channelId);
+                }
+            }
+            catch (Exception ex)
+            {
+                await Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+            }
+        }
+
+        private async Task HandleMessageDeletedAsync(Cacheable<IMessage, ulong> arg1, Cacheable<IMessageChannel, ulong> arg2)
+        {
+            try
+            {
+                var messageId = arg1.Id;
+                var channelId = arg2.Id;
+
+                if (await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId))
+                {
+                    var thread = await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).GetThreadByChannelId(channelId);
+                    if (await thread.ContainsThreadMessageByMessageId(messageId)) await thread.DeleteThreadMessage(messageId);
+                }
+            }
+            catch (Exception ex)
+            {
+                await Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+            }
+        }
+
+        private async Task HandleMessageReceivedAsync(SocketMessage arg)
+        {
+            try
+            {
+                var msg = arg as SocketUserMessage;
+                var channelId = msg.Channel.Id;
+
+                if (await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId) && !msg.Author.IsBot)
+                {
+                    var userInfo = msg.Author;
+                    var channel = msg.Channel;
+
+                    var thread = await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).GetThreadByChannelId(channelId);
+                    var threadMessage = await thread.AddThreadMessage(arg.Author.Id, msg.Content);
+
+                    var embedBuiler = new EmbedBuilder()
+                        .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                        .WithDescription(msg.Content)
+                        .WithCurrentTimestamp()
+                        .WithColor(Color.Orange);
+
+                    var message = await channel.SendMessageAsync(null, false, embedBuiler.Build());
+                    threadMessage.SetThreadMessageChannelId(message.Id);
+
+                    await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).UpdateThreadPositionInChannel(thread, _discordClient);
+                    await msg.DeleteAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                await Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+            }
+        }
 
         private async Task HandleClientReadyAsync()
         {
@@ -241,7 +325,18 @@ namespace EMBRS
                 var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
                 var commands = await guild.GetApplicationCommandsAsync();
 
-                if(!_updateCommands && commands.Any(r => r.Name == "end")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "End"));
+                if (!_updateCommands && commands.Any(r => r.Name == "addtopic")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "AddTopic"));
+                else
+                {
+                    var addTopicCommand = new SlashCommandBuilder()
+                        .WithName("addtopic")
+                        .WithDescription("Adds a new governance topic.")
+                        .AddOption("header", ApplicationCommandOptionType.String, "Topic header", isRequired: true)
+                        .AddOption("content", ApplicationCommandOptionType.String, "Topic content", isRequired: true);
+                    await guild.CreateApplicationCommandAsync(addTopicCommand.Build());
+                }
+
+                if (!_updateCommands && commands.Any(r => r.Name == "end")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "End"));
                 else
                 {
                     var endCommand = new SlashCommandBuilder()
@@ -287,15 +382,6 @@ namespace EMBRS
                         .AddOption("xrpaddress", ApplicationCommandOptionType.String, "The XRP address", isRequired: true);
                     await guild.CreateApplicationCommandAsync(registerCommand.Build());
                 }
-
-                //if (!_updateCommands && commands.Any(r => r.Name == "reward")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Reward"));
-                //else
-                //{
-                //    var rewardCommand = new SlashCommandBuilder()
-                //        .WithName("reward")
-                //        .WithDescription("Receive Emberlight tournament reward.");
-                //    await guild.CreateApplicationCommandAsync(rewardCommand.Build());
-                //}
 
                 if (!_updateCommands && commands.Any(r => r.Name == "select")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Select"));
                 else
@@ -377,6 +463,19 @@ namespace EMBRS
                         .WithDescription("Unregister from EMBRS bot.");
                     await guild.CreateApplicationCommandAsync(unregisterCommand.Build());
                 }
+
+                if (!_updateCommands && commands.Any(r => r.Name == "vote")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Vote"));
+                else
+                {
+                    var voteCommand = new SlashCommandBuilder()
+                        .WithName("vote")
+                        .WithDescription("Vote on topic in channel.")
+                        .AddOption("result", ApplicationCommandOptionType.String, "YES/NO", isRequired: true);
+                    await guild.CreateApplicationCommandAsync(voteCommand.Build());
+                }
+
+                var threadDatabase = Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads);
+                threadDatabase.SetCategoryId(guild.CategoryChannels.FirstOrDefault(category => category.Name.ToLower() == "governance").Id);
 
                 var updateChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "updates");
                 await updateChannel.SendMessageAsync("**EMBRS Forged bot is now online! Please check above GitHub check-in for latest changes!**");

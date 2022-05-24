@@ -31,6 +31,8 @@ namespace EMBRS
         public static double MinCommandTime { get; set; }
         public static double MinTipTime { get; set; }
         public static double MinFaucetTime { get; set; }
+        public static double ThreadTimeInDays { get; set; }
+        public static double IdleThreadTimeToDelete { get; set; }
 
         public static void Initialize()
         {
@@ -72,6 +74,8 @@ namespace EMBRS
             MinCommandTime = d.MinCommandTime;
             MinTipTime = d.MinTipTime;
             MinFaucetTime = d.MinFaucetTime;
+            ThreadTimeInDays = d.ThreadTimeInDays;
+            IdleThreadTimeToDelete = d.IdleThreadTimeToDelete;
         }
     }
 }

@@ -7,9 +7,9 @@ using RippleDotNet.Json.Converters;
 using RippleDotNet.Model;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using XUMM.NET.SDK.EMBRS;
 using XUMM.NET.SDK.Models.Payload;
@@ -42,6 +42,15 @@ namespace EMBRS_Discord
         {
             switch (command.Data.Name)
             {
+                case "addtopic":
+                    {
+                        await Program.Log(new LogMessage(LogSeverity.Info, "Command", "addtopic"));
+                        var addTopicTask = Task.Run(async () =>
+                        {
+                            await HandleAddTopicCommand(command);
+                        });
+                        break;
+                    }
                 case "end":
                     {
                         await Program.Log(new LogMessage(LogSeverity.Info, "Command", "end"));
@@ -84,15 +93,6 @@ namespace EMBRS_Discord
                         var registerTask = Task.Run(async () =>
                         {
                             await HandleRegisterCommand(command);
-                        });
-                        break;
-                    }
-                case "reward":
-                    {
-                        await Program.Log(new LogMessage(LogSeverity.Info, "Command", "reward"));
-                        var rewardTask = Task.Run(async () =>
-                        {
-                            await HandleRewardCommand(command);
                         });
                         break;
                     }
@@ -168,6 +168,37 @@ namespace EMBRS_Discord
                         });
                         break;
                     }
+                case "vote":
+                    {
+                        await Program.Log(new LogMessage(LogSeverity.Info, "Command", "vote"));
+                        var voteTask = Task.Run(async () =>
+                        {
+                            await HandleVoteCommand(command);
+                        });
+                        break;
+                    }
+            }
+        }
+
+        private async Task HandleAddTopicCommand(SocketSlashCommand command)
+        {
+            try
+            {
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfRegistered(command)) return;
+                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
+
+                var userInfo = command.User as SocketGuildUser;
+                await command.DeferAsync(ephemeral: true);
+                var header = (string)command.Data.Options.SingleOrDefault(r => r.Name == "header").Value;
+                var content = (string)command.Data.Options.SingleOrDefault(r => r.Name == "content").Value;
+
+                var thread = await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).CreateThread(userInfo, header, content, _discordClient);
+                await command.FollowupAsync("New thread created in channel #" + thread.GetThreadChannelName() + " under Governance category!", ephemeral: true);
+            }
+            catch (Exception ex)
+            {
+                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
             }
         }
 
@@ -175,71 +206,35 @@ namespace EMBRS_Discord
         {
             try
             {
-                var userInfo = command.User;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
-                {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastCommandTime).TotalSeconds < Settings.MinCommandTime)
-                    {
-                        await command.RespondAsync("Not enough time between commands. Try again!", ephemeral: true);
-                        return;
-                    }
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfAdmin(command)) return;
+                if (!await CheckIfCorrectChannel(command, "tournament")) return;
 
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    Database.IsDirty = true;
-                }
-                else
+                var userInfo = command.User as SocketGuildUser;
+                await command.DeferAsync(ephemeral: true);
+
+                var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
+                var tournamentRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament");
+                var winnerRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament Winner");
+                var roles = new List<SocketRole>() { tournamentRole, winnerRole };
+
+                var users = await command.Channel.GetUsersAsync().FlattenAsync<IUser>();
+                foreach (IGuildUser user in users)
                 {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
-                    {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("End command failed. Try again!", ephemeral: true);
-                        return;
-                    }
+                    await user.RemoveRolesAsync(roles);
                 }
 
-                if ((userInfo as SocketGuildUser).Roles.Any(r => r.Name == "Leads"))
+                foreach (var user in Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccounts())
                 {
-                    if (command.Channel.Name == "tournament" || command.Channel.Name == "testing")
-                    {
-                        await command.DeferAsync(ephemeral: true);
-
-                        var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                        var tournamentRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament");
-                        var winnerRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament Winner");
-                        var roles = new List<SocketRole>() { tournamentRole, winnerRole };
-
-                        var users = await command.Channel.GetUsersAsync().FlattenAsync<IUser>();
-                        foreach (IGuildUser user in users)
-                        {
-                            await user.RemoveRolesAsync(roles);
-                        }
-
-                        foreach (var user in Database.RegisteredUsers)
-                        {
-                            user.Value.TournamentWinner = false;
-                            user.Value.ReceivedTournamentReward = false;
-                            user.Value.InTournament = false;
-                        }
-
-                        var message = (string)command.Data.Options.First().Value;
-                        await command.FollowupAsync("Thank you to everyone that participated in the week " + message + " Emberlight tournament! Sign-ups for week " + (int.Parse(message) + 1).ToString() + " will start tomorrow. Check #announcements for more details.");
-
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Use in #tournament channel only!", ephemeral: true);
-                    }
+                    user.TournamentWinner = false;
+                    user.ReceivedTournamentReward = false;
+                    user.InTournament = false;
                 }
-                else
-                {
-                    await command.RespondAsync("Admin-only command!", ephemeral: true);
-                }
+
+                var message = (string)command.Data.Options.First().Value;
+                await command.FollowupAsync("Thank you to everyone that participated in the week " + message + " Emberlight tournament! Sign-ups for week " + (int.Parse(message) + 1).ToString() + " will start tomorrow. Check #announcements for more details.");
+
+                Database.IsDirty = true;
             }
             catch (Exception ex)
             {
@@ -251,53 +246,16 @@ namespace EMBRS_Discord
         {
             try
             {
+                if (!await CheckForTimeBetweenFaucet(command)) return;
+                if (!await CheckIfRegistered(command)) return;
+                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
+
                 var userInfo = command.User as SocketGuildUser;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
-                {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastFaucetTime).TotalHours < Settings.MinFaucetTime)
-                    {
-                        await command.RespondAsync("Faucet is available once every 24 hours. Please try again later!", ephemeral: true);
-                        return;
-                    }
+                await command.DeferAsync(ephemeral: true);
+                await XRPL.SendRewardAsync(command, null, userInfo, Settings.FaucetTokenAmt, false, false, true);
+                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).EMBRSEarned += float.Parse(Settings.FaucetTokenAmt);
+                Database.IsDirty = true;
 
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    Database.RegisteredUsers[userInfo.Id].LastFaucetTime = DateTime.UtcNow;
-                    Database.IsDirty = true;
-                }
-                else
-                {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
-                    {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.RegisteredUsers[userInfo.Id].LastFaucetTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Reward command failed. Try again!", ephemeral: true);
-                        return;
-                    }
-                }
-
-                if (command.Channel.Name == "bot-commands" || command.Channel.Name == "testing")
-                {
-                    if (Database.RegisteredUsers[userInfo.Id].IsRegistered)
-                    {
-                        await command.DeferAsync(ephemeral: true);
-                        await XRPL.SendRewardAsync(command, null, userInfo, Settings.FaucetTokenAmt, false, false, true);
-                        Database.RegisteredUsers[userInfo.Id].EMBRSEarned += float.Parse(Settings.FaucetTokenAmt);
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("You are not registered for faucet!", ephemeral: true);
-                    }
-                }
-                else
-                {
-                    await command.RespondAsync("Use in #bot-commands channel only!", ephemeral: true);
-                }
             }
             catch (Exception ex)
             {
@@ -309,78 +267,48 @@ namespace EMBRS_Discord
         {
             try
             {
-                var userInfo = command.User;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
-                {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastCommandTime).TotalSeconds < Settings.MinCommandTime)
-                    {
-                        await command.RespondAsync("Not enough time between commands. Try again!", ephemeral: true);
-                        return;
-                    }
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
 
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    Database.IsDirty = true;
-                }
-                else
-                {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
-                    {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Help command failed. Try again!", ephemeral: true);
-                        return;
-                    }
-                }
+                var userInfo = command.User as SocketGuildUser;
 
-                if (command.Channel.Name == "bot-commands" || command.Channel.Name == "testing")
-                {
-                    var stringBuilder = new StringBuilder();
-                    stringBuilder.Append("To use slash commands on **mobile**, please type out the /command until it shows listed above. Tap the command, and then tap each parameter (if required) and it will allow you to fill them out individually.");
-                    stringBuilder.AppendLine();
-                    stringBuilder.AppendLine();
-                    stringBuilder.Append("To use slash commands on **desktop**, please type out the /command until it shows listed above. Click it and it should automatically jump to the first parameter (if required). Click the box next to each parameter to fill them out individually.");
-                    stringBuilder.AppendLine();
-                    stringBuilder.Append("-----");
+                var stringBuilder = new StringBuilder();
+                stringBuilder.Append("To use slash commands on **mobile**, please type out the /command until it shows listed above. Tap the command, and then tap each parameter (if required) and it will allow you to fill them out individually.");
+                stringBuilder.AppendLine();
+                stringBuilder.AppendLine();
+                stringBuilder.Append("To use slash commands on **desktop**, please type out the /command until it shows listed above. Click it and it should automatically jump to the first parameter (if required). Click the box next to each parameter to fill them out individually.");
+                stringBuilder.AppendLine();
+                stringBuilder.Append("-----");
 
-                    var swapStringBuilder = new StringBuilder();
-                    swapStringBuilder.Append("Swap between trading pairs EMBRS/XRP, EMBRS/USD, and USD/XRP. Sign transaction in XUMM Wallet for safety and security (#bot-commands)");
-                    swapStringBuilder.AppendLine();
-                    swapStringBuilder.AppendLine();
-                    swapStringBuilder.Append("Example 1: **/swap EMBRS XRP 10** will swap 10 EMBRS into equal in value amount of XRP (exchange rate shown in XUMM)");
-                    swapStringBuilder.AppendLine();
-                    swapStringBuilder.AppendLine();
-                    swapStringBuilder.Append("Example 2: **/swap USD EMBRS 10** will swap an equal in value amount of USD into 10 EMBRS (exchange rate shown in XUMM)");
+                var swapStringBuilder = new StringBuilder();
+                swapStringBuilder.Append("Swap between trading pairs EMBRS/XRP, EMBRS/USD, and USD/XRP. Sign transaction in XUMM Wallet for safety and security (#bot-commands)");
+                swapStringBuilder.AppendLine();
+                swapStringBuilder.AppendLine();
+                swapStringBuilder.Append("Example 1: **/swap EMBRS XRP 10** will swap 10 EMBRS into equal in value amount of XRP (exchange rate shown in XUMM)");
+                swapStringBuilder.AppendLine();
+                swapStringBuilder.AppendLine();
+                swapStringBuilder.Append("Example 2: **/swap USD EMBRS 10** will swap an equal in value amount of USD into 10 EMBRS (exchange rate shown in XUMM)");
 
-                    var tipStringBuilder = new StringBuilder();
-                    tipStringBuilder.Append("Tip a registered EMBRS user, and sign transaction in XUMM Wallet for safety and security (#lounge)");
-                    tipStringBuilder.AppendLine();
-                    tipStringBuilder.AppendLine();
-                    tipStringBuilder.Append("Example: **/tip @Vaernus 10** will tip 10 EMBRS as a payment to @Vaernus (who will most likely tip you back because he's pretty cool)");
+                var tipStringBuilder = new StringBuilder();
+                tipStringBuilder.Append("Tip a registered EMBRS user, and sign transaction in XUMM Wallet for safety and security (#lounge)");
+                tipStringBuilder.AppendLine();
+                tipStringBuilder.AppendLine();
+                tipStringBuilder.Append("Example: **/tip @Vaernus 10** will tip 10 EMBRS as a payment to @Vaernus (who will most likely tip you back because he's pretty cool)");
 
-                    var embedBuiler = new EmbedBuilder()
-                        .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
-                        .WithDescription(stringBuilder.ToString())
-                        .WithColor(Color.Orange)
-                        .AddField("/faucet", "Receive daily EMBRS from faucet (#bot-commands)")
-                        .AddField("/help", "Show EMBRS bot command list (#bot-commands)")
-                        .AddField("/register <xrpaddress>", "Register your Discord username and XRP address for faucet, rewards, DEX swaps, and tips (#bot-commands)")
-                        .AddField("/reward", "When winning Emberlight tournament, get your EMBRS reward (#winners)")
-                        .AddField("/status", "Check status of your XRP address, balances, earned EMBRS, etc. in EMBRS bot (#bot-commands)")
-                        .AddField("/swap <from> <to> <amount>", swapStringBuilder.ToString())
-                        .AddField("/tip <recipient> <amount>", tipStringBuilder.ToString())
-                        .AddField("/tournament", "Sign-up for the current week's Emberlight tournament (#bot-commands)")
-                        .AddField("/unregister", "Unregister from the EMBRS bot (#bot-commands)");
+                var embedBuiler = new EmbedBuilder()
+                    .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                    .WithDescription(stringBuilder.ToString())
+                    .WithColor(Color.Orange)
+                    .AddField("/faucet", "Receive daily EMBRS from faucet (#bot-commands)")
+                    .AddField("/help", "Show EMBRS bot command list (#bot-commands)")
+                    .AddField("/register <xrpaddress>", "Register your Discord username and XRP address for faucet, rewards, DEX swaps, and tips (#bot-commands)")
+                    .AddField("/status", "Check status of your XRP address, balances, earned EMBRS, etc. in EMBRS bot (#bot-commands)")
+                    .AddField("/swap <from> <to> <amount>", swapStringBuilder.ToString())
+                    .AddField("/tip <recipient> <amount>", tipStringBuilder.ToString())
+                    .AddField("/tournament", "Sign-up for the current week's Emberlight tournament (#bot-commands)")
+                    .AddField("/unregister", "Unregister from the EMBRS bot (#bot-commands)");
 
-                    await command.RespondAsync(embed: embedBuiler.Build(), ephemeral: true);
-                }
-                else
-                {
-                    await command.RespondAsync("Use in #bot-commands channel only!", ephemeral: true);
-                }
+                await command.RespondAsync(embed: embedBuiler.Build(), ephemeral: true);
             }
             catch (Exception ex)
             {
@@ -392,52 +320,17 @@ namespace EMBRS_Discord
         {
             try
             {
-                var userInfo = command.User;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
-                {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastCommandTime).TotalSeconds < Settings.MinCommandTime)
-                    {
-                        await command.RespondAsync("Not enough time between commands. Try again!", ephemeral: true);
-                        return;
-                    }
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfAdmin(command)) return;
+                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
 
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    Database.IsDirty = true;
-                }
-                else
-                {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
-                    {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Maintenance command failed. Try again!", ephemeral: true);
-                        return;
-                    }
-                }
+                var userInfo = command.User as SocketGuildUser;
+                var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
+                var updateChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "updates");
+                await updateChannel.SendMessageAsync("**EMBRS Forged bot is shutting down for maintenance!**");
+                await command.RespondAsync("EMBRS maintenance ready", ephemeral: true);
+                await Program.Shutdown();
 
-                if ((userInfo as SocketGuildUser).Roles.Any(r => r.Name == "Leads"))
-                {
-                    if (command.Channel.Name == "bot-commands" || command.Channel.Name == "testing")
-                    {
-                        var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                        var updateChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "updates");
-                        await updateChannel.SendMessageAsync("**EMBRS Forged bot is shutting down for maintenance!**");
-                        await command.RespondAsync("EMBRS maintenance ready", ephemeral: true);
-                        await Program.Shutdown();
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Use in #bot-commands channel only!", ephemeral: true);
-                    }
-                }
-                else
-                {
-                    await command.RespondAsync("Admin-only command!", ephemeral: true);
-                }
             }
             catch (Exception ex)
             {
@@ -449,117 +342,22 @@ namespace EMBRS_Discord
         {
             try
             {
-                var userInfo = command.User;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
-                {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastCommandTime).TotalSeconds < Settings.MinCommandTime)
-                    {
-                        await command.RespondAsync("Not enough time between commands. Try again!", ephemeral: true);
-                        return;
-                    }
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
 
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    Database.IsDirty = true;
-                }
-                else
-                {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
-                    {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Register command failed. Try again!", ephemeral: true);
-                        return;
-                    }
-                }
-
-                if (command.Channel.Name == "bot-commands" || command.Channel.Name == "testing")
-                {
-                    var xrpAddress = (string)command.Data.Options.First().Value;
-                    if (!Database.RegisteredUsers[userInfo.Id].IsRegistered)
-                    {
-                        Database.RegisteredUsers[userInfo.Id].XrpAddress = xrpAddress;
-                        Database.RegisteredUsers[userInfo.Id].IsRegistered = true;
-                        await command.RespondAsync("You are registered with EMBRS bot!", ephemeral: true);
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        Database.RegisteredUsers[userInfo.Id].XrpAddress = xrpAddress;
-                        await command.RespondAsync("You updated your XRP address in EMBRS bot!", ephemeral: true);
-                        Database.IsDirty = true;
-                    }
-                }
-                else
-                {
-                    await command.RespondAsync("Use in #bot-commands channel only!", ephemeral: true);
-                }
-            }
-            catch (Exception ex)
-            {
-                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
-            }
-        }
-
-        private async Task HandleRewardCommand(SocketSlashCommand command)
-        {
-            try
-            {
                 var userInfo = command.User as SocketGuildUser;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
+                var xrpAddress = (string)command.Data.Options.First().Value;
+                if (!Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).IsRegistered)
                 {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastCommandTime).TotalSeconds < Settings.MinCommandTime)
-                    {
-                        await command.RespondAsync("Not enough time between commands. Try again!", ephemeral: true);
-                        return;
-                    }
-
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
+                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).RegisterAccount(userInfo.Id, xrpAddress);
+                    await command.RespondAsync("You are registered with EMBRS bot!", ephemeral: true);
                     Database.IsDirty = true;
                 }
                 else
                 {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
-                    {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Reward command failed. Try again!", ephemeral: true);
-                        return;
-                    }
-                }
-
-                if (command.Channel.Name == "winners" || command.Channel.Name == "testing")
-                {
-                    if (userInfo.Roles.Any(r => r.Name == "Tournament Winner"))
-                    {
-                        if (!Database.RegisteredUsers[userInfo.Id].ReceivedTournamentReward)
-                        {
-                            Database.RegisteredUsers[userInfo.Id].ReceivedTournamentReward = true;
-                            await command.DeferAsync(ephemeral: true);
-                            await XRPL.SendRewardAsync(command, null, userInfo, Settings.RewardTokenAmt, true, false, false);
-                            Database.RegisteredUsers[userInfo.Id].EMBRSEarned += float.Parse(Settings.RewardTokenAmt);
-                            Database.IsDirty = true;
-                        }
-                        else
-                        {
-                            await command.RespondAsync("You have already received reward!", ephemeral: true);
-                        }
-                    }
-                    else
-                    {
-                        await command.RespondAsync("You do not have the Tournament Winner role!", ephemeral: true);
-                    }
-                }
-                else
-                {
-                    await command.RespondAsync("Use in #winners channel only!", ephemeral: true);
+                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).RegisterAccount(userInfo.Id, xrpAddress);
+                    await command.RespondAsync("You updated your XRP address in EMBRS bot!", ephemeral: true);
+                    Database.IsDirty = true;
                 }
             }
             catch (Exception ex)
@@ -572,149 +370,113 @@ namespace EMBRS_Discord
         {
             try
             {
-                var userInfo = command.User;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
-                {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastCommandTime).TotalSeconds < Settings.MinCommandTime)
-                    {
-                        await command.RespondAsync("Not enough time between commands. Try again!", ephemeral: true);
-                        return;
-                    }
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfAdmin(command)) return;
+                if (!await CheckIfCorrectChannel(command, "winners")) return;
 
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    Database.IsDirty = true;
-                }
-                else
+                var userInfo = command.User as SocketGuildUser;
+                await command.DeferAsync(ephemeral: true);
+
+                var amount = (Int64)command.Data.Options.First().Value;
+                var users = await command.Channel.GetUsersAsync().FlattenAsync<IUser>();
+                var usersList = new List<IUser>(users);
+                var removeList = new List<IUser>();
+
+                for (int i = 0; i < usersList.Count; i++)
                 {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
+                    var user = usersList[i] as SocketGuildUser;
+                    if (!user.Roles.Any(r => r.Name == "Tournament Winner"))
                     {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Select command failed. Try again!", ephemeral: true);
-                        return;
+                        removeList.Add(user);
                     }
                 }
 
-                if ((userInfo as SocketGuildUser).Roles.Any(r => r.Name == "Leads"))
+                for (int i = 0; i < removeList.Count; i++)
                 {
-                    if (command.Channel.Name == "winners" || command.Channel.Name == "testing")
+                    usersList.Remove(removeList[i]);
+                }
+
+                var rng = new System.Random();
+                var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
+                var earlyAccessRole = guild.Roles.FirstOrDefault(x => x.Name == "Early Supporters");
+
+                var stringBuilder = new StringBuilder();
+
+                if (usersList.Count > 0)
+                {
+                    for (int i = 0; i < amount; i++)
                     {
-                        await command.DeferAsync(ephemeral: true);
+                        var index = rng.Next(0, usersList.Count);
+                        var user = usersList[index] as SocketGuildUser;
+                        if (usersList.Count > 1) usersList.RemoveAt(index);
 
-                        var amount = (Int64)command.Data.Options.First().Value;
-                        var users = await command.Channel.GetUsersAsync().FlattenAsync<IUser>();
-                        var usersList = new List<IUser>(users);
-                        var removeList = new List<IUser>();
+                        stringBuilder.Append($"@{user.Username}#{user.Discriminator}");
+                        if (i == 0)
+                        {
+                            stringBuilder.Append($" - 1100 EMBRS and early access slot to Emberlight: Rekindled!");
+                            if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ReceivedTournamentReward)
+                            {
+                                await XRPL.SendRewardAsync(command, null, user, "1000");
+                                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += 1000;
+                            }
+                            else
+                            {
+                                await XRPL.SendRewardAsync(command, null, user, "1100");
+                                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += 1100;
+                            }
 
+                            await user.AddRoleAsync(earlyAccessRole);
+                            Database.IsDirty = true;
+                        }
+                        else
+                        {
+                            stringBuilder.Append($" - 600 EMBRS and early access slot to Emberlight: Rekindled!");
+                            if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ReceivedTournamentReward)
+                            {
+                                await XRPL.SendRewardAsync(command, null, user, "500");
+                                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += 500;
+                            }
+                            else
+                            {
+                                await XRPL.SendRewardAsync(command, null, user, "600");
+                                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += 600;
+                            }
+
+                            Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ReceivedTournamentReward = true;
+
+                            await user.AddRoleAsync(earlyAccessRole);
+                            Database.IsDirty = true;
+                        }
+                        stringBuilder.AppendLine();
+                    }
+
+                    if (usersList.Count > 0)
+                    {
                         for (int i = 0; i < usersList.Count; i++)
                         {
                             var user = usersList[i] as SocketGuildUser;
-                            if (!user.Roles.Any(r => r.Name == "Tournament Winner"))
+                            stringBuilder.Append($"@{user.Username}#{user.Discriminator}");
+                            stringBuilder.Append($" - 100 EMBRS!");
+
+                            if (!Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ReceivedTournamentReward)
                             {
-                                removeList.Add(user);
-                            }
-                        }
-
-                        for (int i = 0; i < removeList.Count; i++)
-                        {
-                            usersList.Remove(removeList[i]);
-                        }
-
-                        var rng = new System.Random();
-                        var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                        var earlyAccessRole = guild.Roles.FirstOrDefault(x => x.Name == "Early Supporters");
-
-                        var stringBuilder = new StringBuilder();
-
-                        if (usersList.Count > 0)
-                        {
-                            for (int i = 0; i < amount; i++)
-                            {
-                                var index = rng.Next(0, usersList.Count);
-                                var user = usersList[index] as SocketGuildUser;
-                                if (usersList.Count > 1) usersList.RemoveAt(index);
-
-                                stringBuilder.Append($"@{user.Username}#{user.Discriminator}");
-                                if (i == 0)
-                                {
-                                    stringBuilder.Append($" - 1100 EMBRS and early access slot to Emberlight: Rekindled!");
-                                    if (Database.RegisteredUsers[user.Id].ReceivedTournamentReward)
-                                    {
-                                        await XRPL.SendRewardAsync(command, null, user, "1000");
-                                        Database.RegisteredUsers[user.Id].EMBRSEarned += 1000;
-                                    }
-                                    else
-                                    {
-                                        await XRPL.SendRewardAsync(command, null, user, "1100");
-                                        Database.RegisteredUsers[user.Id].EMBRSEarned += 1100;
-                                    }
-
-                                    await user.AddRoleAsync(earlyAccessRole);
-                                    Database.IsDirty = true;
-                                }
-                                else
-                                {
-                                    stringBuilder.Append($" - 600 EMBRS and early access slot to Emberlight: Rekindled!");
-                                    if (Database.RegisteredUsers[user.Id].ReceivedTournamentReward)
-                                    {
-                                        await XRPL.SendRewardAsync(command, null, user, "500");
-                                        Database.RegisteredUsers[user.Id].EMBRSEarned += 500;
-                                    }
-                                    else
-                                    {
-                                        await XRPL.SendRewardAsync(command, null, user, "600");
-                                        Database.RegisteredUsers[user.Id].EMBRSEarned += 600;
-                                    }
-
-                                    Database.RegisteredUsers[user.Id].ReceivedTournamentReward = true;
-
-                                    await user.AddRoleAsync(earlyAccessRole);
-                                    Database.IsDirty = true;
-                                }
-                                stringBuilder.AppendLine();
+                                await XRPL.SendRewardAsync(command, null, user, "100");
+                                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += 100;
+                                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ReceivedTournamentReward = true;
                             }
 
-                            if(usersList.Count > 0)
-                            {
-                                for(int i = 0; i < usersList.Count; i++)
-                                {
-                                    var user = usersList[i] as SocketGuildUser;
-                                    stringBuilder.Append($"@{user.Username}#{user.Discriminator}");
-                                    stringBuilder.Append($" - 100 EMBRS!");
-
-                                    if (!Database.RegisteredUsers[user.Id].ReceivedTournamentReward)
-                                    {
-                                        await XRPL.SendRewardAsync(command, null, user, "100");
-                                        Database.RegisteredUsers[user.Id].EMBRSEarned += 100;
-                                        Database.RegisteredUsers[user.Id].ReceivedTournamentReward = true;
-                                    }
-
-                                    stringBuilder.AppendLine();
-                                }
-                            }
+                            stringBuilder.AppendLine();
                         }
-
-                        var embedBuiler = new EmbedBuilder()
-                            .WithTitle("Tournament Results")
-                            .WithColor(Color.Orange)
-                            .AddField("Winners", stringBuilder.ToString())
-                            .AddField("Congratulations!", "We will be ending the Emberlight tournament shortly! If you have any questions, please let us know here!");
-
-                        await command.FollowupAsync(embed: embedBuiler.Build());
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Use in #winners channel only!", ephemeral: true);
                     }
                 }
-                else
-                {
-                    await command.RespondAsync("Admin-only command!", ephemeral: true);
-                }
+
+                var embedBuiler = new EmbedBuilder()
+                    .WithTitle("Tournament Results")
+                    .WithColor(Color.Orange)
+                    .AddField("Winners", stringBuilder.ToString())
+                    .AddField("Congratulations!", "We will be ending the Emberlight tournament shortly! If you have any questions, please let us know here!");
+
+                await command.FollowupAsync(embed: embedBuiler.Build());
             }
             catch (Exception ex)
             {
@@ -726,60 +488,24 @@ namespace EMBRS_Discord
         {
             try
             {
-                var userInfo = command.User;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
-                {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastCommandTime).TotalSeconds < Settings.MinCommandTime)
-                    {
-                        await command.RespondAsync("Not enough time between commands. Try again!", ephemeral: true);
-                        return;
-                    }
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfAdmin(command)) return;
+                if (!await CheckIfCorrectChannel(command, "verify")) return;
 
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
+                var userInfo = command.User as SocketGuildUser;
+                var guildUser = (SocketGuildUser)command.Data.Options.First().Value;
+                if (!Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(guildUser.Id) || !Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(guildUser.Id).IsRegistered)
+                {
+                    await command.RespondAsync($"{guildUser.Username}#{guildUser.Discriminator} is not registered with EMBRS!");
+                }
+                else
+                {
+                    var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
+                    var winnerRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament Winner");
+                    await guildUser.AddRoleAsync(winnerRole);
+                    await command.RespondAsync($"A winner is {guildUser.Username}#{guildUser.Discriminator}!");
+                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(guildUser.Id).TournamentWinner = true;
                     Database.IsDirty = true;
-                }
-                else
-                {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
-                    {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Set winner command failed. Try again!", ephemeral: true);
-                        return;
-                    }
-                }
-
-                if ((userInfo as SocketGuildUser).Roles.Any(r => r.Name == "Leads"))
-                {
-                    if (command.Channel.Name == "verify" || command.Channel.Name == "testing")
-                    {
-                        var guildUser = (SocketGuildUser)command.Data.Options.First().Value;
-                        if (!Database.RegisteredUsers.ContainsKey(guildUser.Id) || !Database.RegisteredUsers[guildUser.Id].IsRegistered)
-                        {
-                            await command.RespondAsync($"{guildUser.Username}#{guildUser.Discriminator} is not registered with EMBRS!");
-                        }
-                        else
-                        {
-                            var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                            var winnerRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament Winner");
-                            await guildUser.AddRoleAsync(winnerRole);
-                            await command.RespondAsync($"A winner is {guildUser.Username}#{guildUser.Discriminator}!");
-                            Database.RegisteredUsers[guildUser.Id].TournamentWinner = true;
-                            Database.IsDirty = true;
-                        }
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Use in #verify channel only!", ephemeral: true);
-                    }
-                }
-                else
-                {
-                    await command.RespondAsync("Admin-only command!", ephemeral: true);
                 }
             }
             catch (Exception ex)
@@ -792,60 +518,24 @@ namespace EMBRS_Discord
         {
             try
             {
-                var userInfo = command.User;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
-                {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastCommandTime).TotalSeconds < Settings.MinCommandTime)
-                    {
-                        await command.RespondAsync("Not enough time between commands. Try again!", ephemeral: true);
-                        return;
-                    }
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfAdmin(command)) return;
+                if (!await CheckIfCorrectChannel(command, "tournament")) return;
 
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    Database.IsDirty = true;
-                }
-                else
-                {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
-                    {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Start command failed. Try again!", ephemeral: true);
-                        return;
-                    }
-                }
-
-                if ((userInfo as SocketGuildUser).Roles.Any(r => r.Name == "Leads"))
-                {
-                    if (command.Channel.Name == "tournament" || command.Channel.Name == "testing")
-                    {
-                        var achievement = (string)command.Data.Options.SingleOrDefault(r => r.Name == "achievement").Value;
-                        var week = (string)command.Data.Options.SingleOrDefault(r => r.Name == "week").Value;
+                var userInfo = command.User as SocketGuildUser;
+                var achievement = (string)command.Data.Options.SingleOrDefault(r => r.Name == "achievement").Value;
+                var week = (string)command.Data.Options.SingleOrDefault(r => r.Name == "week").Value;
 
 
-                        var stringBuilder = new StringBuilder();
-                        stringBuilder.Append("**The Emberlight tournament has started! Week " + week + "'s achievement is: **");
-                        stringBuilder.AppendLine();
-                        stringBuilder.AppendLine();
-                        stringBuilder.Append("**" + achievement + "**");
-                        stringBuilder.AppendLine();
-                        stringBuilder.AppendLine();
-                        stringBuilder.Append("**Good luck!**");
-                        await command.RespondAsync(stringBuilder.ToString());
-                    }
-                    else
-                    {
-                        await command.RespondAsync($"Use in #tournament channel only!", ephemeral: true);
-                    }
-                }
-                else
-                {
-                    await command.RespondAsync($"Admin-only command!", ephemeral: true);
-                }
+                var stringBuilder = new StringBuilder();
+                stringBuilder.Append("**The Emberlight tournament has started! Week " + week + "'s achievement is: **");
+                stringBuilder.AppendLine();
+                stringBuilder.AppendLine();
+                stringBuilder.Append("**" + achievement + "**");
+                stringBuilder.AppendLine();
+                stringBuilder.AppendLine();
+                stringBuilder.Append("**Good luck!**");
+                await command.RespondAsync(stringBuilder.ToString());
             }
             catch (Exception ex)
             {
@@ -857,97 +547,67 @@ namespace EMBRS_Discord
         {
             try
             {
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
+
                 var userInfo = command.User as SocketGuildUser;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
+                await command.DeferAsync(ephemeral: true);
+
+                if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).IsRegistered)
                 {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastCommandTime).TotalSeconds < Settings.MinCommandTime)
-                    {
-                        await command.RespondAsync("Not enough time between commands. Try again!", ephemeral: true);
-                        return;
-                    }
+                    var xrp = 0.0m;
+                    var embrs = 0.0m;
+                    var stx = 0.0m;
+                    var usd = 0.0m;
 
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    Database.IsDirty = true;
-                }
-                else
-                {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
+                    IRippleClient client = new RippleClient(Settings.WebSocketUrl);
+                    client.Connect();
                     {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Status command failed. Try again!", ephemeral: true);
-                        return;
-                    }
-                }
+                        xrp = await XRPL.ReturnAccountBalance(client, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).XrpAddress);
+                        System.Threading.Thread.Sleep(Settings.AccountLinesThrottle * 1000);
 
-                if (command.Channel.Name == "bot-commands" || command.Channel.Name == "testing")
-                {
-                    await command.DeferAsync(ephemeral: true);
-
-                    if (Database.RegisteredUsers[userInfo.Id].IsRegistered)
-                    {
-                        var xrp = 0.0m;
-                        var embrs = 0.0m;
-                        var stx = 0.0m;
-                        var usd = 0.0m;
-
-                        IRippleClient client = new RippleClient(Settings.WebSocketUrl);
-                        client.Connect();
+                        string marker = "";
+                        do
                         {
-                            xrp = await XRPL.ReturnAccountBalance(client, Database.RegisteredUsers[userInfo.Id].XrpAddress);
-                            Thread.Sleep(Settings.AccountLinesThrottle * 1000);
-
-                            string marker = "";
-                            do
-                            {
-                                var returnObj = await XRPL.ReturnTrustLines(client, Database.RegisteredUsers[userInfo.Id].XrpAddress, marker);
-                                if (embrs == 0.0m) embrs = returnObj.EMBRSBalance;
-                                if (stx == 0.0m) stx = returnObj.STXBalance;
-                                if (usd == 0.0m) usd = returnObj.USDBalance;
-                                marker = returnObj.Marker;
-                                Thread.Sleep(Settings.AccountLinesThrottle * 1000);
-                            } while (marker != "" && marker != null);
-                        }
-                        client.Disconnect();
-
-                        var stringBuilder = new StringBuilder();
-                        stringBuilder.Append("**XRP**: " + xrp.ToString());
-                        stringBuilder.AppendLine();
-                        stringBuilder.Append("**EMBRS**: " + embrs.ToString());
-                        stringBuilder.AppendLine();
-                        stringBuilder.Append("**STX**: " + stx.ToString());
-                        stringBuilder.AppendLine();
-                        stringBuilder.Append("**USD**: " + usd.ToString());
-
-                        var embedBuiler = new EmbedBuilder()
-                            .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
-                            .WithTitle(Database.RegisteredUsers[userInfo.Id].XrpAddress)
-                            .WithColor(Color.Orange)
-                            .AddField("Balances", stringBuilder.ToString())
-                            .AddField("EMBRS Earned", Database.RegisteredUsers[userInfo.Id].EMBRSEarned)
-                            .AddField("In Tournament", Database.RegisteredUsers[userInfo.Id].InTournament)
-                            .AddField("Won Tournament", Database.RegisteredUsers[userInfo.Id].TournamentWinner)
-                            .AddField("Received Tournament Reward", Database.RegisteredUsers[userInfo.Id].ReceivedTournamentReward);
-
-                        await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
+                            var returnObj = await XRPL.ReturnTrustLines(client, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).XrpAddress, marker);
+                            if (embrs == 0.0m) embrs = returnObj.EMBRSBalance;
+                            if (stx == 0.0m) stx = returnObj.STXBalance;
+                            if (usd == 0.0m) usd = returnObj.USDBalance;
+                            marker = returnObj.Marker;
+                            System.Threading.Thread.Sleep(Settings.AccountLinesThrottle * 1000);
+                        } while (marker != "" && marker != null);
                     }
-                    else
-                    {
-                        var embedBuiler = new EmbedBuilder()
-                            .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
-                            .WithTitle("NOT REGISTERED")
-                            .WithDescription("Use /register command to link your XRP address!")
-                            .WithColor(Color.Orange);
-                        await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
-                    }
+                    client.Disconnect();
+
+                    var stringBuilder = new StringBuilder();
+                    stringBuilder.Append("**XRP**: " + xrp.ToString());
+                    stringBuilder.AppendLine();
+                    stringBuilder.Append("**EMBRS**: " + embrs.ToString());
+                    stringBuilder.AppendLine();
+                    stringBuilder.Append("**STX**: " + stx.ToString());
+                    stringBuilder.AppendLine();
+                    stringBuilder.Append("**USD**: " + usd.ToString());
+
+                    var embedBuiler = new EmbedBuilder()
+                        .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                        .WithTitle(Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).XrpAddress)
+                        .WithColor(Color.Orange)
+                        .AddField("Balances", stringBuilder.ToString())
+                        .AddField("EMBRS Earned", Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).EMBRSEarned)
+                        .AddField("In Tournament", Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).InTournament)
+                        .AddField("Won Tournament", Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).TournamentWinner)
+                        .AddField("Received Tournament Reward", Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).ReceivedTournamentReward);
+
+                    await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
                 }
                 else
                 {
-                    await command.RespondAsync($"Use in #bot-commands channel only!", ephemeral: true);
+                    var embedBuiler = new EmbedBuilder()
+                        .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                        .WithTitle("NOT REGISTERED")
+                        .WithDescription("Use /register command to link your XRP address!")
+                        .WithColor(Color.Orange);
+                    await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
                 }
             }
             catch (Exception ex)
@@ -960,265 +620,226 @@ namespace EMBRS_Discord
         {
             try
             {
-                var userInfo = command.User;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
-                {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastTipTime).TotalSeconds < Settings.MinTipTime)
-                    {
-                        await command.RespondAsync("Swapping is available once every minute. Please try again later!", ephemeral: true);
-                        return;
-                    }
+                if (!await CheckForTimeBetweenSwapOrTip(command)) return;
+                if (!await CheckIfRegistered(command)) return;
+                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
 
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    Database.RegisteredUsers[userInfo.Id].LastTipTime = DateTime.UtcNow;
-                    Database.IsDirty = true;
-                }
-                else
+                var userInfo = command.User as SocketGuildUser;
+                var from = (string)command.Data.Options.SingleOrDefault(r => r.Name == "from").Value;
+                var to = (string)command.Data.Options.SingleOrDefault(r => r.Name == "to").Value;
+                var amount = (double)command.Data.Options.SingleOrDefault(r => r.Name == "amount").Value;
+                await command.DeferAsync(ephemeral: true);
+
+                XummPayloadResponse createdPayload = null;
+
+                if ((from.ToLower() == "embrs" || from.ToLower() == "embers" || from.ToLower() == "usd" || from.ToLower() == "xrp") &&
+                   (to.ToLower() == "embrs" || to.ToLower() == "embers" || to.ToLower() == "usd" || to.ToLower() == "xrp") &&
+                   from.ToLower() != to.ToLower())
                 {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
+                    IRippleClient client = new RippleClient(Settings.WebSocketUrl);
+                    client.Connect();
+                    var initialMidPrice = await XRPL.GetBookOffers(client, from, to);
+                    var value = initialMidPrice.Midprice;
+                    client.Disconnect();
+
+                    Currency fromCurrency = null;
+                    Currency toCurrency = null;
+                    var toAmount = decimal.Round(Convert.ToDecimal(amount) * value.Value, 6);
+
+                    if ((from.ToLower() == "embrs" || from.ToLower() == "embers") && to.ToLower() == "xrp")
                     {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.RegisteredUsers[userInfo.Id].LastTipTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
+                        fromCurrency = new Currency
+                        {
+                            CurrencyCode = Settings.CurrencyCode,
+                            Issuer = Settings.IssuerAddress,
+                            Value = amount.ToString()
+                        };
+
+                        toCurrency = new Currency()
+                        {
+                            ValueAsXrp = toAmount
+                        };
+                    }
+                    else if ((to.ToLower() == "embrs" || to.ToLower() == "embers") && from.ToLower() == "xrp")
+                    {
+                        fromCurrency = new Currency()
+                        {
+                            ValueAsXrp = toAmount
+                        };
+
+                        toCurrency = new Currency
+                        {
+                            CurrencyCode = Settings.CurrencyCode,
+                            Issuer = Settings.IssuerAddress,
+                            Value = amount.ToString()
+                        };
+                    }
+                    else if ((from.ToLower() == "embrs" || from.ToLower() == "embers") && to.ToLower() == "usd")
+                    {
+                        fromCurrency = new Currency
+                        {
+                            CurrencyCode = Settings.CurrencyCode,
+                            Issuer = Settings.IssuerAddress,
+                            Value = amount.ToString()
+                        };
+
+                        toCurrency = new Currency
+                        {
+                            CurrencyCode = Settings.USDCurrencyCode,
+                            Issuer = Settings.USDIssuerAddress,
+                            Value = toAmount.ToString()
+                        };
+                    }
+                    else if ((to.ToLower() == "embrs" || to.ToLower() == "embers") && from.ToLower() == "usd")
+                    {
+                        fromCurrency = new Currency
+                        {
+                            CurrencyCode = Settings.USDCurrencyCode,
+                            Issuer = Settings.USDIssuerAddress,
+                            Value = toAmount.ToString()
+                        };
+
+                        toCurrency = new Currency
+                        {
+                            CurrencyCode = Settings.CurrencyCode,
+                            Issuer = Settings.IssuerAddress,
+                            Value = amount.ToString()
+                        };
+                    }
+                    else if (from.ToLower() == "usd" && to.ToLower() == "xrp")
+                    {
+                        fromCurrency = new Currency
+                        {
+                            CurrencyCode = Settings.USDCurrencyCode,
+                            Issuer = Settings.USDIssuerAddress,
+                            Value = amount.ToString()
+                        };
+
+                        toCurrency = new Currency()
+                        {
+                            ValueAsXrp = toAmount
+                        };
+                    }
+                    else if (to.ToLower() == "usd" && from.ToLower() == "xrp")
+                    {
+                        fromCurrency = new Currency()
+                        {
+                            ValueAsXrp = toAmount
+                        };
+
+                        toCurrency = new Currency
+                        {
+                            CurrencyCode = Settings.USDCurrencyCode,
+                            Issuer = Settings.USDIssuerAddress,
+                            Value = amount.ToString()
+                        };
                     }
                     else
                     {
-                        await command.RespondAsync("Swap command failed. Try again!", ephemeral: true);
+                        await command.FollowupAsync("Invalid pairs or parameters!", ephemeral: true);
                         return;
                     }
-                }
 
-                if (command.Channel.Name == "bot-commands" || command.Channel.Name == "testing")
-                {
-                    var from = (string)command.Data.Options.SingleOrDefault(r => r.Name == "from").Value;
-                    var to = (string)command.Data.Options.SingleOrDefault(r => r.Name == "to").Value;
-                    var amount = (double)command.Data.Options.SingleOrDefault(r => r.Name == "amount").Value;
+                    await command.FollowupAsync($"Swapping " + amount.ToString() + " " + from.ToUpper() + "/" + to.ToUpper(), ephemeral: true);
 
-                    if (Database.RegisteredUsers[userInfo.Id].IsRegistered)
+                    var takerGetsConverter = new CurrencyConverter();
+                    var takerGets = fromCurrency;
+                    var takerGetsResult = JsonConvert.SerializeObject(takerGets, takerGetsConverter);
+
+                    var takerPaysConverter = new CurrencyConverter();
+                    var takerPays = toCurrency;
+                    var takerPaysResult = JsonConvert.SerializeObject(takerPays, takerPaysConverter);
+
+                    var flags = OfferCreateFlags.tfImmediateOrCancel;
+                    var flagsResults = JsonConvert.SerializeObject(flags);
+
+                    var payload = new XummPostJsonPayload("{ \"TransactionType\": \"OfferCreate\", " +
+                                                            "\"TakerGets\": " + takerGetsResult + ", " +
+                                                            "\"TakerPays\": " + takerPaysResult + ", " +
+                                                            "\"Flags\": " + flagsResults + " }");
+
+                    payload.Options = new XummPayloadOptions();
+                    payload.Options.Expire = 5;
+                    payload.Options.Submit = true;
+
+                    payload.CustomMeta = new XummPayloadCustomMeta();
+                    payload.CustomMeta.Instruction = "Swapping " + amount.ToString() + " " + from.ToUpper() + "/" + to.ToUpper();
+
+                    createdPayload = await _payloadClient.CreateAsync(payload);
+
+                    // IF MOBILE, PUSH TO XUMM APP
+                    if (userInfo.ActiveClients.Any(r => r == ClientType.Mobile))
                     {
-                        await command.DeferAsync(ephemeral: true);
+                        var embedBuiler = new EmbedBuilder()
+                                            .WithUrl(createdPayload.Next.Always)
+                                            .WithDescription("Open In Xumm Wallet")
+                                            .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                                            .WithTitle("EMBRS Sign Request");
+                        await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
 
-                        XummPayloadResponse createdPayload = null;
-
-                        if ((from.ToLower() == "embrs" || from.ToLower() == "embers" || from.ToLower() == "usd" || from.ToLower() == "xrp") &&
-                           (to.ToLower() == "embrs" || to.ToLower() == "embers" || to.ToLower() == "usd" || to.ToLower() == "xrp") &&
-                           from.ToLower() != to.ToLower())
+                        var getPayload = await _payloadClient.GetAsync(createdPayload);
+                        while (!getPayload.Meta.Expired)
                         {
-                            IRippleClient client = new RippleClient(Settings.WebSocketUrl);
-                            client.Connect();
-                            var initialMidPrice = await XRPL.GetBookOffers(client, from, to);
-                            var value = initialMidPrice.Midprice;
-                            client.Disconnect();
-
-                            Currency fromCurrency = null;
-                            Currency toCurrency = null;
-                            var toAmount = decimal.Round(Convert.ToDecimal(amount) * value.Value, 6);
-
-                            if ((from.ToLower() == "embrs" || from.ToLower() == "embers") && to.ToLower() == "xrp")
+                            if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
                             {
-                                fromCurrency = new Currency
-                                {
-                                    CurrencyCode = Settings.CurrencyCode,
-                                    Issuer = Settings.IssuerAddress,
-                                    Value = amount.ToString()
-                                };
-
-                                toCurrency = new Currency()
-                                {
-                                    ValueAsXrp = toAmount
-                                };
+                                await command.FollowupAsync($"Swap was resolved and signed!", ephemeral: true);
+                                Database.IsDirty = true;
+                                break;
                             }
-                            else if ((to.ToLower() == "embrs" || to.ToLower() == "embers") && from.ToLower() == "xrp")
+                            else if (getPayload.Meta.Resolved && !getPayload.Meta.Signed)
                             {
-                                fromCurrency = new Currency()
-                                {
-                                    ValueAsXrp = toAmount
-                                };
-
-                                toCurrency = new Currency
-                                {
-                                    CurrencyCode = Settings.CurrencyCode,
-                                    Issuer = Settings.IssuerAddress,
-                                    Value = amount.ToString()
-                                };
-                            }
-                            else if ((from.ToLower() == "embrs" || from.ToLower() == "embers") && to.ToLower() == "usd")
-                            {
-                                fromCurrency = new Currency
-                                {
-                                    CurrencyCode = Settings.CurrencyCode,
-                                    Issuer = Settings.IssuerAddress,
-                                    Value = amount.ToString()
-                                };
-
-                                toCurrency = new Currency
-                                {
-                                    CurrencyCode = Settings.USDCurrencyCode,
-                                    Issuer = Settings.USDIssuerAddress,
-                                    Value = toAmount.ToString()
-                                };
-                            }
-                            else if ((to.ToLower() == "embrs" || to.ToLower() == "embers") && from.ToLower() == "usd")
-                            {
-                                fromCurrency = new Currency
-                                {
-                                    CurrencyCode = Settings.USDCurrencyCode,
-                                    Issuer = Settings.USDIssuerAddress,
-                                    Value = toAmount.ToString()
-                                };
-
-                                toCurrency = new Currency
-                                {
-                                    CurrencyCode = Settings.CurrencyCode,
-                                    Issuer = Settings.IssuerAddress,
-                                    Value = amount.ToString()
-                                };
-                            }
-                            else if (from.ToLower() == "usd" && to.ToLower() == "xrp")
-                            {
-                                fromCurrency = new Currency
-                                {
-                                    CurrencyCode = Settings.USDCurrencyCode,
-                                    Issuer = Settings.USDIssuerAddress,
-                                    Value = amount.ToString()
-                                };
-
-                                toCurrency = new Currency()
-                                {
-                                    ValueAsXrp = toAmount
-                                };
-                            }
-                            else if (to.ToLower() == "usd" && from.ToLower() == "xrp")
-                            {
-                                fromCurrency = new Currency()
-                                {
-                                    ValueAsXrp = toAmount
-                                };
-
-                                toCurrency = new Currency
-                                {
-                                    CurrencyCode = Settings.USDCurrencyCode,
-                                    Issuer = Settings.USDIssuerAddress,
-                                    Value = amount.ToString()
-                                };
-                            }
-                            else
-                            {
-                                await command.FollowupAsync("Invalid pairs or parameters!", ephemeral: true);
-                                return;
+                                await command.FollowupAsync($"Swap was cancelled by user", ephemeral: true);
+                                break;
                             }
 
-                            await command.FollowupAsync($"Swapping " + amount.ToString() + " " + from.ToUpper() + "/" + to.ToUpper(), ephemeral: true);
-
-                            var takerGetsConverter = new CurrencyConverter();
-                            var takerGets = fromCurrency;
-                            var takerGetsResult = JsonConvert.SerializeObject(takerGets, takerGetsConverter);
-
-                            var takerPaysConverter = new CurrencyConverter();
-                            var takerPays = toCurrency;
-                            var takerPaysResult = JsonConvert.SerializeObject(takerPays, takerPaysConverter);
-
-                            var flags = OfferCreateFlags.tfImmediateOrCancel;
-                            var flagsResults = JsonConvert.SerializeObject(flags);
-
-                            var payload = new XummPostJsonPayload("{ \"TransactionType\": \"OfferCreate\", " +
-                                                                    "\"TakerGets\": " + takerGetsResult + ", " +
-                                                                    "\"TakerPays\": " + takerPaysResult + ", " +
-                                                                    "\"Flags\": " + flagsResults + " }");
-
-                            payload.Options = new XummPayloadOptions();
-                            payload.Options.Expire = 5;
-                            payload.Options.Submit = true;
-
-                            payload.CustomMeta = new XummPayloadCustomMeta();
-                            payload.CustomMeta.Instruction = "Swapping " + amount.ToString() + " " + from.ToUpper() + "/" + to.ToUpper();
-
-                            createdPayload = await _payloadClient.CreateAsync(payload);
-
-                            // IF MOBILE, PUSH TO XUMM APP
-                            if (userInfo.ActiveClients.Any(r => r == ClientType.Mobile))
-                            {
-                                var embedBuiler = new EmbedBuilder()
-                                                    .WithUrl(createdPayload.Next.Always)
-                                                    .WithDescription("Open In Xumm Wallet")
-                                                    .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
-                                                    .WithTitle("EMBRS Sign Request");
-                                await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
-
-                                var getPayload = await _payloadClient.GetAsync(createdPayload);
-                                while (!getPayload.Meta.Expired)
-                                {
-                                    if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
-                                    {
-                                        await command.FollowupAsync($"Swap was resolved and signed!", ephemeral: true);
-                                        Database.IsDirty = true;
-                                        break;
-                                    }
-                                    else if (getPayload.Meta.Resolved && !getPayload.Meta.Signed)
-                                    {
-                                        await command.FollowupAsync($"Swap was cancelled by user", ephemeral: true);
-                                        break;
-                                    }
-
-                                    Thread.Sleep(Settings.TxnThrottle * 3000);
-                                    getPayload = await _payloadClient.GetAsync(createdPayload);
-                                }
-
-                                if (getPayload.Meta.Expired)
-                                {
-                                    await command.FollowupAsync($"Swap sign request expired", ephemeral: true);
-                                }
-                            }
-                            else // IF NOT MOBILE, PUSH FOLLOWUP WITH PNG TO QR SCAN AND SIGN
-                            {
-                                var qrPNG = createdPayload.Refs.QrPng;
-                                var embedBuiler = new EmbedBuilder()
-                                                    .WithImageUrl(qrPNG)
-                                                    .WithDescription("Scan In Xumm Wallet")
-                                                    .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
-                                                    .WithTitle("EMBRS Sign Request");
-                                await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
-
-                                var getPayload = await _payloadClient.GetAsync(createdPayload);
-                                while (!getPayload.Meta.Expired)
-                                {
-                                    if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
-                                    {
-                                        await command.FollowupAsync($"Swap was resolved and signed!", ephemeral: true);
-                                        Database.IsDirty = true;
-                                        break;
-                                    }
-                                    else if (getPayload.Meta.Resolved && !getPayload.Meta.Signed)
-                                    {
-                                        await command.FollowupAsync($"Swap was cancelled by user", ephemeral: true);
-                                        break;
-                                    }
-
-                                    Thread.Sleep(Settings.TxnThrottle * 3000);
-                                    getPayload = await _payloadClient.GetAsync(createdPayload);
-                                }
-
-                                if (getPayload.Meta.Expired)
-                                {
-                                    await command.FollowupAsync($"Swap sign request expired", ephemeral: true);
-                                }
-                            }
+                            System.Threading.Thread.Sleep(Settings.TxnThrottle * 3000);
+                            getPayload = await _payloadClient.GetAsync(createdPayload);
                         }
-                        else
+
+                        if (getPayload.Meta.Expired)
                         {
-                            await command.FollowupAsync("Invalid pairs or parameters!", ephemeral: true);
-                            return;
+                            await command.FollowupAsync($"Swap sign request expired", ephemeral: true);
                         }
                     }
-                    else
+                    else // IF NOT MOBILE, PUSH FOLLOWUP WITH PNG TO QR SCAN AND SIGN
                     {
-                        await command.RespondAsync("You are not registered for swaps!", ephemeral: true);
+                        var qrPNG = createdPayload.Refs.QrPng;
+                        var embedBuiler = new EmbedBuilder()
+                                            .WithImageUrl(qrPNG)
+                                            .WithDescription("Scan In Xumm Wallet")
+                                            .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                                            .WithTitle("EMBRS Sign Request");
+                        await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
+
+                        var getPayload = await _payloadClient.GetAsync(createdPayload);
+                        while (!getPayload.Meta.Expired)
+                        {
+                            if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
+                            {
+                                await command.FollowupAsync($"Swap was resolved and signed!", ephemeral: true);
+                                Database.IsDirty = true;
+                                break;
+                            }
+                            else if (getPayload.Meta.Resolved && !getPayload.Meta.Signed)
+                            {
+                                await command.FollowupAsync($"Swap was cancelled by user", ephemeral: true);
+                                break;
+                            }
+
+                            System.Threading.Thread.Sleep(Settings.TxnThrottle * 3000);
+                            getPayload = await _payloadClient.GetAsync(createdPayload);
+                        }
+
+                        if (getPayload.Meta.Expired)
+                        {
+                            await command.FollowupAsync($"Swap sign request expired", ephemeral: true);
+                        }
                     }
                 }
                 else
                 {
-                    await command.RespondAsync("Use in #bot-commands channel only!", ephemeral: true);
+                    await command.FollowupAsync("Invalid pairs or parameters!", ephemeral: true);
+                    return;
                 }
             }
             catch (Exception ex)
@@ -1231,54 +852,29 @@ namespace EMBRS_Discord
         {
             try
             {
-                var userInfo = command.User;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
-                {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastTipTime).TotalSeconds < Settings.MinTipTime)
-                    {
-                        await command.RespondAsync("Tipping is available once every minute. Please try again later!", ephemeral: true);
-                        return;
-                    }
+                if (!await CheckForTimeBetweenSwapOrTip(command)) return;
+                if (!await CheckIfRegistered(command)) return;
 
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    Database.RegisteredUsers[userInfo.Id].LastTipTime = DateTime.UtcNow;
-                    Database.IsDirty = true;
-                }
-                else
-                {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
-                    {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.RegisteredUsers[userInfo.Id].LastTipTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Tip command failed. Try again!", ephemeral: true);
-                        return;
-                    }
-                }
-
+                var userInfo = command.User as SocketGuildUser;
                 var user = (SocketGuildUser)command.Data.Options.SingleOrDefault(r => r.Name == "user").Value;
                 var amount = (double)command.Data.Options.SingleOrDefault(r => r.Name == "amount").Value;
 
-                if (Database.RegisteredUsers[userInfo.Id].IsRegistered && Database.RegisteredUsers[user.Id].IsRegistered)
+                if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(user.Id) && Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).IsRegistered)
                 {
                     var tipAmount = string.Empty;
                     if ((userInfo as SocketGuildUser).Roles.Any(r => r.Name == "Leads"))
                     {
                         tipAmount = Math.Min(amount, float.Parse(Settings.MaxTipTokenAmt)).ToString();
-                        await command.DeferAsync(ephemeral: true);
+                        await command.DeferAsync();
                         await XRPL.SendRewardAsync(command, userInfo, user, tipAmount, false, true, false);
-                        Database.RegisteredUsers[user.Id].EMBRSEarned += float.Parse(tipAmount);
+                        Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += float.Parse(tipAmount);
                         Database.IsDirty = true;
                     }
                     else
                     {
                         await command.DeferAsync(ephemeral: true);
 
-                        var destination = Database.RegisteredUsers[user.Id].XrpAddress;
+                        var destination = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).XrpAddress;
                         var currencyAmount = new Currency { CurrencyCode = Settings.CurrencyCode, Issuer = Settings.IssuerAddress, Value = amount.ToString() };
 
                         var converter = new CurrencyConverter();
@@ -1313,7 +909,7 @@ namespace EMBRS_Discord
                                 if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
                                 {
                                     await command.FollowupAsync($"**{userInfo.Username}#{userInfo.Discriminator} sent {user.Username}#{user.Discriminator} a tip of {amount} EMBRS!**");
-                                    Database.RegisteredUsers[user.Id].EMBRSEarned += (float)amount;
+                                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += (float)amount;
                                     Database.IsDirty = true;
                                     break;
                                 }
@@ -1323,7 +919,7 @@ namespace EMBRS_Discord
                                     break;
                                 }
 
-                                Thread.Sleep(Settings.TxnThrottle * 3000);
+                                System.Threading.Thread.Sleep(Settings.TxnThrottle * 3000);
                                 getPayload = await _payloadClient.GetAsync(createdPayload);
                             }
 
@@ -1348,7 +944,7 @@ namespace EMBRS_Discord
                                 if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
                                 {
                                     await command.FollowupAsync($"**{userInfo.Username}#{userInfo.Discriminator} sent {user.Username}#{user.Discriminator} a tip of {amount} EMBRS!**");
-                                    Database.RegisteredUsers[user.Id].EMBRSEarned += (float)amount;
+                                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += (float)amount;
                                     Database.IsDirty = true;
                                     break;
                                 }
@@ -1358,7 +954,7 @@ namespace EMBRS_Discord
                                     break;
                                 }
 
-                                Thread.Sleep(Settings.TxnThrottle * 3000);
+                                System.Threading.Thread.Sleep(Settings.TxnThrottle * 3000);
                                 getPayload = await _payloadClient.GetAsync(createdPayload);
                             }
 
@@ -1370,9 +966,9 @@ namespace EMBRS_Discord
                     }
                 }
                 else
-                    {
-                        await command.RespondAsync("User(s) are not registered for tips!", ephemeral: true);
-                    }
+                {
+                    await command.RespondAsync("Recipient is not registered for tips!", ephemeral: true);
+                }
             }
             catch (Exception ex)
             {
@@ -1384,59 +980,24 @@ namespace EMBRS_Discord
         {
             try
             {
-                var userInfo = command.User as SocketGuildUser;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
-                {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastCommandTime).TotalSeconds < Settings.MinCommandTime)
-                    {
-                        await command.RespondAsync("Not enough time between commands. Try again!", ephemeral: true);
-                        return;
-                    }
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfRegistered(command)) return;
+                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
 
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
+                var userInfo = command.User as SocketGuildUser;
+
+                if (DateTime.UtcNow.DayOfWeek == DayOfWeek.Tuesday || DateTime.UtcNow.DayOfWeek == DayOfWeek.Wednesday || DateTime.UtcNow.DayOfWeek == DayOfWeek.Thursday)
+                {
+                    var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
+                    var tournamentRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament");
+                    await userInfo.AddRoleAsync(tournamentRole);
+                    await command.RespondAsync("You are signed-up for this week's tournament! Check #tournament for more details.", ephemeral: true);
+                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).InTournament = true;
                     Database.IsDirty = true;
                 }
                 else
                 {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
-                    {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Tournament command failed. Try again!", ephemeral: true);
-                        return;
-                    }
-                }
-
-                if (command.Channel.Name == "bot-commands" || command.Channel.Name == "testing")
-                {
-                    if (DateTime.UtcNow.DayOfWeek == DayOfWeek.Tuesday || DateTime.UtcNow.DayOfWeek == DayOfWeek.Wednesday || DateTime.UtcNow.DayOfWeek == DayOfWeek.Thursday)
-                    {
-                        if (!Database.RegisteredUsers[userInfo.Id].IsRegistered)
-                        {
-                            await command.RespondAsync("You need to /register with EMBRS bot to join tournament!", ephemeral: true);
-                        }
-                        else
-                        {
-                            var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                            var tournamentRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament");
-                            await (userInfo as SocketGuildUser).AddRoleAsync(tournamentRole);
-                            await command.RespondAsync("You are signed-up for this week's tournament! Check #tournament for more details.", ephemeral: true);
-                            Database.RegisteredUsers[userInfo.Id].InTournament = true;
-                            Database.IsDirty = true;
-                        }
-                    }
-                    else
-                    {
-                        await command.RespondAsync("Tournament sign-ups for this week are closed. Next week's sign-ups will start on Tuesday!", ephemeral: true);
-                    }
-                }
-                else
-                {
-                    await command.RespondAsync("Use in #bot-commands channel only!", ephemeral: true);
+                    await command.RespondAsync("Tournament sign-ups for this week are closed. Next week's sign-ups will start on Tuesday!", ephemeral: true);
                 }
             }
             catch (Exception ex)
@@ -1449,68 +1010,173 @@ namespace EMBRS_Discord
         {
             try
             {
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfRegistered(command)) return;
+                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
+
                 var userInfo = command.User as SocketGuildUser;
-                if (Database.RegisteredUsers.ContainsKey(userInfo.Id))
-                {
-                    if ((DateTime.UtcNow - Database.RegisteredUsers[userInfo.Id].LastCommandTime).TotalSeconds < Settings.MinCommandTime)
-                    {
-                        await command.RespondAsync("Not enough time between commands. Try again!", ephemeral: true);
-                        return;
-                    }
+                await command.DeferAsync(ephemeral: true);
 
-                    Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                    Database.IsDirty = true;
-                }
-                else
+                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).UnregisterAccount(userInfo.Id);
+                var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
+                var tournamentRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament");
+                var winnerRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament Winner");
+                var roles = new List<SocketRole>() { tournamentRole, winnerRole };
+                await userInfo.RemoveRolesAsync(roles);
+                Database.IsDirty = true;
+
+                await command.FollowupAsync("You are no longer registered with EMBRS bot!", ephemeral: true);
+            }
+            catch (Exception ex)
+            {
+                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+            }
+        }
+
+        private async Task HandleVoteCommand(SocketSlashCommand command)
+        {
+            try
+            {
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfRegistered(command)) return;
+
+                var userInfo = command.User as SocketGuildUser;
+                await command.DeferAsync(ephemeral: true);
+                var result = (string)command.Data.Options.SingleOrDefault(r => r.Name == "result").Value;
+
+                if (result.ToLower() == "yes" || result.ToLower() == "no")
                 {
-                    var newAccount = new Account(userInfo.Id, string.Empty);
-                    if (Database.RegisteredUsers.TryAdd(userInfo.Id, newAccount))
+                    var resultBool = (result.ToLower() == "yes") ? true : (result.ToLower() == "no") ? false : false;
+                    var channelId = command.Channel.Id;
+                    if (await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId))
                     {
-                        Database.RegisteredUsers[userInfo.Id].LastCommandTime = DateTime.UtcNow;
-                        Database.IsDirty = true;
+                        var thread = await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).GetThreadByChannelId(channelId);
+                        await thread.SetVote(userInfo.Id, resultBool);
+                        await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).UpdateThreadPositionInChannel(thread, _discordClient);
+                        await command.FollowupAsync("Your vote has been applied!", ephemeral: true);
                     }
                     else
                     {
-                        await command.RespondAsync("Unregister command failed. Try again!", ephemeral: true);
-                        return;
-                    }
-                }
-
-                if (command.Channel.Name == "bot-commands" || command.Channel.Name == "testing")
-                {
-                    if (!Database.RegisteredUsers[userInfo.Id].IsRegistered)
-                    {
-                        await command.RespondAsync("You are currently not registered with EMBRS bot!", ephemeral: true);
-                    }
-                    else
-                    {
-                        await command.RespondAsync("You are no longer registered with EMBRS bot!", ephemeral: true);
-
-                        Database.RegisteredUsers[userInfo.Id].IsRegistered = false;
-                        Database.RegisteredUsers[userInfo.Id].XrpAddress = string.Empty;
-                        Database.RegisteredUsers[userInfo.Id].EMBRSEarned = 0;
-
-                        var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                        var tournamentRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament");
-                        var winnerRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament Winner");
-                        var roles = new List<SocketRole>() { tournamentRole, winnerRole };
-                        await userInfo.RemoveRolesAsync(roles);
-                        Database.RegisteredUsers[userInfo.Id].TournamentWinner = false;
-                        Database.RegisteredUsers[userInfo.Id].ReceivedTournamentReward = false;
-                        Database.RegisteredUsers[userInfo.Id].InTournament = false;
-
-                        Database.IsDirty = true;
+                        await command.FollowupAsync("Did not find a governance thread to vote on. Please make sure to use /vote command in a thread channel!", ephemeral: true);
                     }
                 }
                 else
                 {
-                    await command.RespondAsync("Use in #bot-commands channel only!", ephemeral: true);
+                    await command.FollowupAsync("Parameter incorrect in vote command! Must be yes or no.", ephemeral: true);
+                    return;
                 }
             }
             catch (Exception ex)
             {
                 await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
             }
+        }
+
+        private async Task<bool> CheckIfAdmin(SocketSlashCommand command)
+        {
+            var userInfo = command.User as SocketGuildUser;
+            if (userInfo.Roles.Any(r => r.Name == "Leads")) return true;
+            await command.RespondAsync("Admin-only command!", ephemeral: true);
+            return false;
+        }
+
+        private async Task<bool> CheckIfRegistered(SocketSlashCommand command)
+        {
+            var userInfo = command.User as SocketGuildUser;
+            if (!Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).IsRegistered)
+            {
+                await command.RespondAsync("Please /register to use this command!", ephemeral: true);
+                return false;
+            }
+
+            return true;
+        }
+
+        private async Task<bool> CheckIfCorrectChannel(SocketSlashCommand command, string channelName)
+        {
+            if (command.Channel.Name == channelName || command.Channel.Name == "testing") return true;
+            await command.RespondAsync("Use in #" + channelName + " channel only!", ephemeral: true);
+            return false;
+        }
+
+        private async Task<bool> CheckForTimeBetweenCommands(SocketSlashCommand command)
+        {
+            var userInfo = command.User as SocketGuildUser;
+            if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(userInfo.Id))
+            {
+                if ((DateTime.UtcNow - Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastCommandTime).TotalSeconds < Settings.MinCommandTime)
+                {
+                    await command.RespondAsync("Not enough time between commands. Try again!", ephemeral: true);
+                    return false;
+                }
+
+                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastCommandTime = DateTime.UtcNow;
+                Database.IsDirty = true;
+            }
+            else
+            {
+                var account = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).AddAccount(userInfo.Id);
+                account.LastCommandTime = DateTime.UtcNow;
+                Database.IsDirty = true;
+            }
+
+            return true;
+        }
+
+        private async Task<bool> CheckForTimeBetweenFaucet(SocketSlashCommand command)
+        {
+            var userInfo = command.User as SocketGuildUser;
+            if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(userInfo.Id))
+            {
+                if ((DateTime.UtcNow - Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastFaucetTime).TotalHours < Settings.MinFaucetTime)
+                {
+                    var nextFaucetTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastFaucetTime.AddHours(Settings.MinFaucetTime) - DateTime.UtcNow;
+                    string formattedTimeSpan = nextFaucetTime.ToString(@"hh\:mm\:ss");
+                    string timeSeparator = CultureInfo.CurrentCulture.DateTimeFormat.TimeSeparator;
+                    formattedTimeSpan = formattedTimeSpan.Replace(":", timeSeparator);
+                    await command.RespondAsync("Faucet is available once every 24 hours. Please try again in " + formattedTimeSpan + "!", ephemeral: true);
+                    return false;
+                }
+
+                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastCommandTime = DateTime.UtcNow;
+                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastFaucetTime = DateTime.UtcNow;
+                Database.IsDirty = true;
+            }
+            else
+            {
+                var account = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).AddAccount(userInfo.Id);
+                account.LastCommandTime = DateTime.UtcNow;
+                account.LastFaucetTime = DateTime.UtcNow;
+                Database.IsDirty = true;
+            }
+
+            return true;
+        }
+
+        private async Task<bool> CheckForTimeBetweenSwapOrTip(SocketSlashCommand command)
+        {
+            var userInfo = command.User as SocketGuildUser;
+            if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(userInfo.Id))
+            {
+                if ((DateTime.UtcNow - Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastTipTime).TotalSeconds < Settings.MinTipTime)
+                {
+                    await command.RespondAsync("Swapping/tipping is available once every minute. Please try again later!", ephemeral: true);
+                    return false;
+                }
+
+                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastCommandTime = DateTime.UtcNow;
+                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastTipTime = DateTime.UtcNow;
+                Database.IsDirty = true;
+            }
+            else
+            {
+                var account = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).AddAccount(userInfo.Id);
+                account.LastCommandTime = DateTime.UtcNow;
+                account.LastTipTime = DateTime.UtcNow;
+                Database.IsDirty = true;
+            }
+
+            return true;
         }
     }
 }

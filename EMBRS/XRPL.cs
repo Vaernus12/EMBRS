@@ -33,13 +33,13 @@ namespace EMBRS
                     Console.WriteLine("Waiting...fees too high. Current Open Ledger Fee: " + f.Drops.OpenLedgerFee);
                     Console.WriteLine("Fees configured based on fee multiplier: " + Convert.ToInt32(Math.Floor(f.Drops.OpenLedgerFee * Settings.FeeMultiplier)));
                     Console.WriteLine("Maximum Fee Configured: " + Settings.MaximumFee);
-                    Thread.Sleep(Settings.AccountLinesThrottle * 1000);
+                    System.Threading.Thread.Sleep(Settings.AccountLinesThrottle * 1000);
                     f = await client.Fees();
                 }
 
                 int feeInDrops = Convert.ToInt32(Math.Floor(f.Drops.OpenLedgerFee * Settings.FeeMultiplier));
 
-                var response = await XRPL.SendXRPPaymentAsync(client, Database.RegisteredUsers[destinationUser.Id].XrpAddress, sequence, feeInDrops, amount, Settings.TransferFee);
+                var response = await XRPL.SendXRPPaymentAsync(client, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).XrpAddress, sequence, feeInDrops, amount, Settings.TransferFee);
 
                 //Transaction Node isn't Current. Wait for Network
                 if (response.EngineResult == "noCurrent" || response.EngineResult == "noNetwork")
@@ -48,16 +48,16 @@ namespace EMBRS
                     while ((response.EngineResult == "noCurrent" || response.EngineResult == "noNetwork") && retry < 3)
                     {
                         //Throttle for node to catch up
-                        Thread.Sleep(Settings.TxnThrottle * 3000);
-                        response = await XRPL.SendXRPPaymentAsync(client, Database.RegisteredUsers[destinationUser.Id].XrpAddress, sequence, feeInDrops, amount, Settings.TransferFee);
+                        System.Threading.Thread.Sleep(Settings.TxnThrottle * 3000);
+                        response = await XRPL.SendXRPPaymentAsync(client, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).XrpAddress, sequence, feeInDrops, amount, Settings.TransferFee);
                         retry++;
 
                         if ((response.EngineResult == "noCurrent" || response.EngineResult == "noNetwork") && retry == 3)
                         {
                             await command.FollowupAsync("XRP network isn't responding. Please try again later!", ephemeral: true);
-                            if (reward) Database.RegisteredUsers[destinationUser.Id].ReceivedTournamentReward = false;
-                            else if (tip) Database.RegisteredUsers[destinationUser.Id].LastTipTime = Database.RegisteredUsers[destinationUser.Id].LastTipTime.AddMinutes(-1);
-                            else if (faucet) Database.RegisteredUsers[destinationUser.Id].LastFaucetTime = Database.RegisteredUsers[destinationUser.Id].LastFaucetTime.AddHours(-24);
+                            if (reward) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).ReceivedTournamentReward = false;
+                            else if (tip) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastTipTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastTipTime.AddMinutes(-1);
+                            else if (faucet) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastFaucetTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastFaucetTime.AddHours(-24);
                         }
                     }
                 }
@@ -66,19 +66,19 @@ namespace EMBRS
                     //Get new account sequence + try again
                     sequence = await XRPL.GetLatestAccountSequence(client, Settings.RewardAddress);
                     await command.FollowupAsync("Please try again!", ephemeral: true);
-                    if (reward) Database.RegisteredUsers[destinationUser.Id].ReceivedTournamentReward = false;
-                    else if (tip) Database.RegisteredUsers[destinationUser.Id].LastTipTime = Database.RegisteredUsers[destinationUser.Id].LastTipTime.AddMinutes(-1);
-                    else if (faucet) Database.RegisteredUsers[destinationUser.Id].LastFaucetTime = Database.RegisteredUsers[destinationUser.Id].LastFaucetTime.AddHours(-24);
+                    if (reward) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).ReceivedTournamentReward = false;
+                    else if (tip) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastTipTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastTipTime.AddMinutes(-1);
+                    else if (faucet) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastFaucetTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastFaucetTime.AddHours(-24);
                 }
                 else if (response.EngineResult == "telCAN_NOT_QUEUE_FEE")
                 {
                     sequence = await XRPL.GetLatestAccountSequence(client, Settings.RewardAddress);
                     //Throttle, check fees and try again
-                    Thread.Sleep(Settings.TxnThrottle * 3000);
+                    System.Threading.Thread.Sleep(Settings.TxnThrottle * 3000);
                     await command.FollowupAsync("Please try again!", ephemeral: true);
-                    if (reward) Database.RegisteredUsers[destinationUser.Id].ReceivedTournamentReward = false;
-                    else if (tip) Database.RegisteredUsers[destinationUser.Id].LastTipTime = Database.RegisteredUsers[destinationUser.Id].LastTipTime.AddMinutes(-1);
-                    else if (faucet) Database.RegisteredUsers[destinationUser.Id].LastFaucetTime = Database.RegisteredUsers[destinationUser.Id].LastFaucetTime.AddHours(-24);
+                    if (reward) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).ReceivedTournamentReward = false;
+                    else if (tip) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastTipTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastTipTime.AddMinutes(-1);
+                    else if (faucet) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastFaucetTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastFaucetTime.AddHours(-24);
                 }
                 else if (response.EngineResult == "tesSUCCESS" || response.EngineResult == "terQUEUED")
                 {
@@ -105,18 +105,18 @@ namespace EMBRS
                 {
                     //Trustline was removed or Destination Tag needed for address
                     await command.FollowupAsync("EMBRS trustline is not set!", ephemeral: true);
-                    if (reward) Database.RegisteredUsers[destinationUser.Id].ReceivedTournamentReward = false;
-                    else if (tip) Database.RegisteredUsers[destinationUser.Id].LastTipTime = Database.RegisteredUsers[destinationUser.Id].LastTipTime.AddMinutes(-1);
-                    else if (faucet) Database.RegisteredUsers[destinationUser.Id].LastFaucetTime = Database.RegisteredUsers[destinationUser.Id].LastFaucetTime.AddHours(-24);
+                    if (reward) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).ReceivedTournamentReward = false;
+                    else if (tip) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastTipTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastTipTime.AddMinutes(-1);
+                    else if (faucet) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastFaucetTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastFaucetTime.AddHours(-24);
                     sequence++;
                 }
                 else
                 {
                     //Failed
                     await command.FollowupAsync("EMBRS transaction failed!", ephemeral: true);
-                    if (reward) Database.RegisteredUsers[destinationUser.Id].ReceivedTournamentReward = false;
-                    else if (tip) Database.RegisteredUsers[destinationUser.Id].LastTipTime = Database.RegisteredUsers[destinationUser.Id].LastTipTime.AddMinutes(-1);
-                    else if (faucet) Database.RegisteredUsers[destinationUser.Id].LastFaucetTime = Database.RegisteredUsers[destinationUser.Id].LastFaucetTime.AddHours(-24);
+                    if (reward) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).ReceivedTournamentReward = false;
+                    else if (tip) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastTipTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastTipTime.AddMinutes(-1);
+                    else if (faucet) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastFaucetTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastFaucetTime.AddHours(-24);
                     sequence++;
                 }
 
@@ -125,9 +125,9 @@ namespace EMBRS
             catch (Exception ex)
             {
                 await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
-                if (reward) Database.RegisteredUsers[destinationUser.Id].ReceivedTournamentReward = false;
-                else if (tip) Database.RegisteredUsers[destinationUser.Id].LastTipTime = Database.RegisteredUsers[destinationUser.Id].LastTipTime.AddMinutes(-1);
-                else if (faucet) Database.RegisteredUsers[destinationUser.Id].LastFaucetTime = Database.RegisteredUsers[destinationUser.Id].LastFaucetTime.AddHours(-24);
+                if (reward) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).ReceivedTournamentReward = false;
+                else if (tip) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastTipTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastTipTime.AddMinutes(-1);
+                else if (faucet) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastFaucetTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).LastFaucetTime.AddHours(-24);
             }
         }
 
@@ -218,7 +218,7 @@ namespace EMBRS
                     };
 
                     var offers = await client.BookOffers(request1);
-                    Thread.Sleep(Settings.TxnThrottle * 1000);
+                    System.Threading.Thread.Sleep(Settings.TxnThrottle * 1000);
                     var offers2 = await client.BookOffers(request2);
 
                     decimal? lowestBid = 100000;
@@ -302,7 +302,7 @@ namespace EMBRS
                     };
 
                     var offers = await client.BookOffers(request1);
-                    Thread.Sleep(Settings.TxnThrottle * 1000);
+                    System.Threading.Thread.Sleep(Settings.TxnThrottle * 1000);
                     var offers2 = await client.BookOffers(request2);
 
                     decimal? lowestBid = 100000;
