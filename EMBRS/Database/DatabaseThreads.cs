@@ -1,5 +1,6 @@
 ﻿using Discord;
 using Discord.WebSocket;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,12 +8,13 @@ using System.Threading.Tasks;
 
 namespace EMBRS
 {
+    [Serializable]
     public class DatabaseThreads : DatabaseBase
     {
-        private Dictionary<ulong, Thread> _registeredThreads;
-        private ulong _nextThreadId = 1;
-        private ulong _categoryId;
-        private List<ulong> _threadChannels;
+        [JsonProperty] private Dictionary<ulong, Thread> _registeredThreads;
+        [JsonProperty] private ulong _nextThreadId = 1;
+        [JsonProperty] private ulong _categoryId;
+        [JsonProperty] private List<ulong> _threadChannels;
 
         public DatabaseThreads()
         {
@@ -45,11 +47,8 @@ namespace EMBRS
         {
             var guild = client.GetGuild(ulong.Parse(Settings.GuildID));    
             
-            var properties = new TextChannelProperties();
-            properties.CategoryId = _categoryId;
-            properties.SlowModeInterval = 10;
-            
-            var channel = await guild.CreateTextChannelAsync(linkedThread.GetThreadChannelName(), prop => prop = properties );
+            var channel = await guild.CreateTextChannelAsync(linkedThread.GetThreadChannelName(), prop => prop.SlowModeInterval = 10);
+            await channel.ModifyAsync(prop => prop.CategoryId = _categoryId);
             linkedThread.SetThreadChannelId(channel.Id);
 
             var embedBuiler = new EmbedBuilder()

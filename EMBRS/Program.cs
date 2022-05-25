@@ -22,7 +22,7 @@ namespace EMBRS
         private readonly XummPayloadClient _payloadClient;
         private readonly XummHttpClient _httpClient;
 
-        private readonly bool _updateCommands = true;
+        private readonly bool _updateCommands = false;
 
         private static bool _running = false;
         private static bool _ready = false;

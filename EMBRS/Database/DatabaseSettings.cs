@@ -2,6 +2,7 @@
 
 namespace EMBRS
 {
+    [Serializable]
     public class DatabaseSettings : DatabaseBase
     {
         public bool SundayMessage = false;

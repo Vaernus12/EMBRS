@@ -1,10 +1,13 @@
-﻿using System.Collections.Generic;
+﻿using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
 
 namespace EMBRS
 {
+    [Serializable]
     public class DatabaseAccounts : DatabaseBase
     {
-        private Dictionary<ulong, Account> _registeredUsers;
+        [JsonProperty] private Dictionary<ulong, Account> _registeredUsers;
 
         public DatabaseAccounts()
         {

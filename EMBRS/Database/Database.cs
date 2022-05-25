@@ -10,16 +10,10 @@ namespace EMBRS
     public static class Database
     {
         public static bool IsDirty;
-
-        private static Dictionary<ulong, Account> RegisteredUsers; // Old database
-        private static Dictionary<DatabaseType, DatabaseBase> _tables; // New database
-
-        private static bool UseOldDatabase = false;
-        private static bool ConvertToNewDatabase = true;
+        private static Dictionary<DatabaseType, DatabaseBase> _tables;
 
         public static async Task Initialize()
         {
-            RegisteredUsers = new Dictionary<ulong, Account>();
             _tables = new Dictionary<DatabaseType, DatabaseBase>();
             _tables.Add(DatabaseType.Accounts, new DatabaseAccounts());
             _tables.Add(DatabaseType.Settings, new DatabaseSettings());
@@ -42,18 +36,10 @@ namespace EMBRS
         {
             try
             {
-                if (UseOldDatabase)
-                {
-                    var result = JsonConvert.SerializeObject(RegisteredUsers);
-                    await File.WriteAllTextAsync("EMBRSDatabase.dat", result);
-                    await Program.Log(new LogMessage(LogSeverity.Info, "Database Write", "Complete"));
-                }
-                else
-                {
-                    var result = JsonConvert.SerializeObject(_tables);
-                    await File.WriteAllTextAsync("EMBRSDatabase2.dat", result);
-                    await Program.Log(new LogMessage(LogSeverity.Info, "Database Write", "Complete"));
-                }
+                var settings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto };
+                var result = JsonConvert.SerializeObject(_tables, settings);
+                await File.WriteAllTextAsync("EMBRSDatabase2.dat", result);
+                await Program.Log(new LogMessage(LogSeverity.Info, "Database Write", "Complete"));
             }
             catch (Exception ex)
             {
@@ -65,30 +51,12 @@ namespace EMBRS
         {
             try
             {
-                if (UseOldDatabase || ConvertToNewDatabase)
+                if (File.Exists("EMBRSDatabase2.dat"))
                 {
-                    if (File.Exists("EMBRSDatabase.dat"))
-                    {
-                        string value = await File.ReadAllTextAsync("EMBRSDatabase.dat");
-                        RegisteredUsers = JsonConvert.DeserializeObject<Dictionary<ulong, Account>>(value);
-                        await Program.Log(new LogMessage(LogSeverity.Info, "Database Read", "Complete"));
-                    }
-
-                    if(ConvertToNewDatabase)
-                    {
-                        var database = GetDatabase<DatabaseAccounts>(DatabaseType.Accounts);
-                        database.UpdateRegisteredUsers(RegisteredUsers);
-                        IsDirty = true;
-                    }
-                }
-                else if(!UseOldDatabase)
-                {
-                    if (File.Exists("EMBRSDatabase2.dat"))
-                    {
-                        string value = await File.ReadAllTextAsync("EMBRSDatabase2.dat");
-                        _tables = JsonConvert.DeserializeObject<Dictionary<DatabaseType, DatabaseBase>>(value);
-                        await Program.Log(new LogMessage(LogSeverity.Info, "Database Read", "Complete"));
-                    }
+                    string value = await File.ReadAllTextAsync("EMBRSDatabase2.dat");
+                    var settings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto };
+                    _tables = JsonConvert.DeserializeObject<Dictionary<DatabaseType, DatabaseBase>>(value, settings);
+                    await Program.Log(new LogMessage(LogSeverity.Info, "Database Read", "Complete"));
                 }
             }
             catch (Exception ex)

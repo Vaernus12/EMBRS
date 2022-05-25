@@ -1,6 +1,6 @@
 ﻿namespace EMBRS
 {
-    public abstract class DatabaseBase
+    public class DatabaseBase
     {
         public DatabaseType Type;
     }

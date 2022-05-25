@@ -1,14 +1,16 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 
 namespace EMBRS
 {
+    [Serializable]
     public class ThreadMessage
     {
-        private ulong _threadMessageId;
-        private ulong _threadMessageChannelId;
-        private DateTime _threadMessageCreation;
-        private ulong _threadMessageAuthor;
-        private string _threadMessageContent;
+        [JsonProperty] private ulong _threadMessageId;
+        [JsonProperty] private ulong _threadMessageChannelId;
+        [JsonProperty] private DateTime _threadMessageCreation;
+        [JsonProperty] private ulong _threadMessageAuthor;
+        [JsonProperty] private string _threadMessageContent;
 
         public ThreadMessage(ulong id, ulong author, string content)
         {

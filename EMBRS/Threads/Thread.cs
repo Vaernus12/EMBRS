@@ -1,5 +1,6 @@
 ﻿using Discord;
 using Discord.WebSocket;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,20 +9,21 @@ using System.Threading.Tasks;
 
 namespace EMBRS
 {
+    [Serializable]
     public class Thread
     {
-        private ulong _threadId;
-        private ulong _threadChannelId;
-        private ulong _threadEmbedId;
-        private DateTime _threadCreation;
-        private DateTime _threadExpiration;
-        private DateTime _threadUpdated;
-        private ulong _threadAuthor;
-        private string _threadHeader;
-        private string _threadContent;
-        private Dictionary<ulong, bool> _threadVotes;
-        private List<ThreadMessage> _threadDiscussion;
-        private ulong _nextThreadMessageId = 1;
+        [JsonProperty] private ulong _threadId;
+        [JsonProperty] private ulong _threadChannelId;
+        [JsonProperty] private ulong _threadEmbedId;
+        [JsonProperty] private DateTime _threadCreation;
+        [JsonProperty] private DateTime _threadExpiration;
+        [JsonProperty] private DateTime _threadUpdated;
+        [JsonProperty] private ulong _threadAuthor;
+        [JsonProperty] private string _threadHeader;
+        [JsonProperty] private string _threadContent;
+        [JsonProperty] private Dictionary<ulong, bool> _threadVotes;
+        [JsonProperty] private List<ThreadMessage> _threadDiscussion;
+        [JsonProperty] private ulong _nextThreadMessageId = 1;
 
         private readonly Regex regex = new Regex("[^a-zA-Z0-9 _]");
 
@@ -75,8 +77,8 @@ namespace EMBRS
             var channelName = _threadHeader;
             channelName = regex.Replace(channelName, string.Empty);
             channelName = channelName.Replace(' ', '-').ToLower();
-            channelName = channelName.Substring(0, 32);
-            return channelName;
+            channelName = channelName.Substring(0, (channelName.Length < 32) ? channelName.Length : 32);
+            return channelName.ToLower();
         }
 
         public string GetThreadHeader()
