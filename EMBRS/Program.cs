@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using XUMM.NET.SDK.EMBRS;
@@ -22,7 +23,7 @@ namespace EMBRS
         private readonly XummPayloadClient _payloadClient;
         private readonly XummHttpClient _httpClient;
 
-        private readonly bool _updateCommands = false;
+        private readonly bool _updateCommands = true;
 
         private static bool _running = false;
         private static bool _ready = false;
@@ -108,104 +109,161 @@ namespace EMBRS
 
         private async Task LoopTasks()
         {
-            // DATABASE
-            if (Database.IsDirty)
-            {
-                await Database.Write();
-                Database.IsDirty = false;
-            }
-
-            if ((DateTime.UtcNow - _timeSinceLastDatabaseWrite).TotalMinutes >= _timeBetweenDatabaseWritesInMinutes)
-            {
-                await Database.Write();
-                Database.IsDirty = false;
-                _timeSinceLastDatabaseWrite = DateTime.UtcNow;
-            }
-
             try
             {
-                // MESSAGING
-                switch (DateTime.UtcNow.DayOfWeek)
+                // DATABASE
+                if (Database.IsDirty)
                 {
-                    case DayOfWeek.Sunday:
-                        {
-                            break;
-                        }
-                    case DayOfWeek.Monday:
-                        {
-                            break;
-                        }
-                    case DayOfWeek.Tuesday:
-                        {
-                            if (!Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).TuesdayTournamentMessage)
-                            {
-                                var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                                var emberlightChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "emberlight");
-                                await emberlightChannel.SendMessageAsync("**Emberlight tournament sign-ups have started! Use the /tournament command to sign-up. This week's tournament begins Friday night. If you have not done so already, you can register with me using the /register command!**");
-                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).TuesdayTournamentMessage = true;
-                                Database.IsDirty = true;
-                            }
-                            break;
-                        }
-                    case DayOfWeek.Wednesday:
-                        {
-                            if (!Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).WednesdayTournamentMessage)
-                            {
-                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).TuesdayTournamentMessage = false;
-                                var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                                var emberlightChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "emberlight");
-                                await emberlightChannel.SendMessageAsync("**Emberlight tournament sign-ups are still going on! Who else will be joining in this week?!**");
-                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).WednesdayTournamentMessage = true;
-                                Database.IsDirty = true;
-                            }
-                            break;
-                        }
-                    case DayOfWeek.Thursday:
-                        {
-                            if (!Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).ThursdayTournamentMessage)
-                            {
-                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).WednesdayTournamentMessage = false;
-                                var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                                var emberlightChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "emberlight");
-                                await emberlightChannel.SendMessageAsync("**Last day for Emberlight tournament sign-ups this week! Don't miss out to win EMBRS, early access to Emberlight: Rekindled, and special prizes provided by our sponsors!**");
-                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).ThursdayTournamentMessage = true;
-                                Database.IsDirty = true;
-                            }
-                            break;
-                        }
-                    case DayOfWeek.Friday:
-                        {
-                            if (!Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).FridayTournamentMessage)
-                            {
-                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).ThursdayTournamentMessage = false;
-                                var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                                var emberlightChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "emberlight");
-                                await emberlightChannel.SendMessageAsync("**Emberlight tournament sign-ups have ended. If you missed out, no worries! You can earn EMBRS via the /faucet command while you wait!**");
-                                Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).FridayTournamentMessage = true;
-                                Database.IsDirty = true;
-                            }
-                            break;
-                        }
-                    case DayOfWeek.Saturday:
-                        {
-                            Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).FridayTournamentMessage = false;
-                            Database.IsDirty = true;
-                            break;
-                        }
+                    await Database.Write();
+                    Database.IsDirty = false;
                 }
 
-                if ((DateTime.UtcNow - Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).TimeSinceLastMessage).TotalHours >= _timeBetweenMessagesInHours)
+                if ((DateTime.UtcNow - _timeSinceLastDatabaseWrite).TotalMinutes >= _timeBetweenDatabaseWritesInMinutes)
+                {
+                    await Database.Write();
+                    Database.IsDirty = false;
+                    _timeSinceLastDatabaseWrite = DateTime.UtcNow;
+                }
+
+                // DAILY FUNCTIONALITY
+                if(Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).GetSavedDayOfWeek() != DateTime.UtcNow.DayOfWeek)
+                {
+                    Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).SetSavedDayOfWeek(DateTime.UtcNow.DayOfWeek);
+                    var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
+
+                    // FAUCET
+                    foreach (var account in  Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccounts())
+                    {
+                        account.SetReceivedFaucetReward(false);
+                        var embrsChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "embrs");
+                        var embedBuilder = new EmbedBuilder()
+                            .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
+                            .WithDescription("The EMBRS faucet has been replenished! If you're registered, you can now use the /faucet command to earn today's EMBRS.")
+                            .WithCurrentTimestamp()
+                            .WithColor(Color.Orange);
+
+                        await embrsChannel.SendMessageAsync(null, false, embedBuilder.Build());
+
+                        Database.IsDirty = true;
+                    }
+
+                    // MESSAGING/TOURNAMENT
+                    switch (DateTime.UtcNow.DayOfWeek)
+                    {
+                        case DayOfWeek.Sunday:
+                            {
+                                Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).SetTournamentStatus(TournamentStatus.Active);
+                                break;
+                            }
+                        case DayOfWeek.Monday:
+                            {
+                                Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).SetTournamentStatus(TournamentStatus.HandlingRewards);
+                                await Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).HandleRewards(_discordClient);
+                                break;
+                            }
+                        case DayOfWeek.Tuesday:
+                            {
+                                Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).SetTournamentStatus(TournamentStatus.SignUp);
+                                await Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).ResetTournament(_discordClient);
+                                Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).IncrementTournamentWeek();
+                                var emberlightChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "emberlight");
+                                var embedBuilder = new EmbedBuilder()
+                                    .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
+                                    .WithDescription("Emberlight tournament sign-ups have started! Use the /tournament command to sign-up. This week's tournament begins Friday night. If you have not done so already, you can register with me using the /register command!")
+                                    .WithCurrentTimestamp()
+                                    .WithColor(Color.Orange);
+
+                                await emberlightChannel.SendMessageAsync(null, false, embedBuilder.Build());
+                                Database.IsDirty = true;
+                                break;
+                            }
+                        case DayOfWeek.Wednesday:
+                            {
+                                Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).SetTournamentStatus(TournamentStatus.SignUp);
+                                var emberlightChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "emberlight");
+                                var embedBuilder = new EmbedBuilder()
+                                    .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
+                                    .WithDescription("Emberlight tournament sign-ups are still going on! Who else will be joining in this week?!")
+                                    .WithCurrentTimestamp()
+                                    .WithColor(Color.Orange);
+
+                                await emberlightChannel.SendMessageAsync(null, false, embedBuilder.Build());
+                                Database.IsDirty = true;
+                                break;
+                            }
+                        case DayOfWeek.Thursday:
+                            {
+                                Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).SetTournamentStatus(TournamentStatus.SignUp);
+                                var emberlightChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "emberlight");
+                                var embedBuilder = new EmbedBuilder()
+                                    .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
+                                    .WithDescription("Last day for Emberlight tournament sign-ups this week! Don't miss out to win EMBRS, early access to Emberlight: Rekindled, and special prizes provided by our sponsors!")
+                                    .WithCurrentTimestamp()
+                                    .WithColor(Color.Orange);
+
+                                await emberlightChannel.SendMessageAsync(null, false, embedBuilder.Build());
+                                Database.IsDirty = true;
+                                break;
+                            }
+                        case DayOfWeek.Friday:
+                            {
+                                Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).SetTournamentStatus(TournamentStatus.StartingSoon);
+                                var emberlightChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "emberlight");
+                                var embedBuilder = new EmbedBuilder()
+                                    .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
+                                    .WithDescription("Emberlight tournament sign-ups have ended. If you missed out, no worries! You can earn EMBRS via the /faucet command while you wait for next week!")
+                                    .WithCurrentTimestamp()
+                                    .WithColor(Color.Orange);
+
+                                await emberlightChannel.SendMessageAsync(null, false, embedBuilder.Build());
+                                Database.IsDirty = true;
+                                break;
+                            }
+                        case DayOfWeek.Saturday:
+                            {
+                                Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).SetTournamentStatus(TournamentStatus.Active);
+                                await Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).StartTournament(_discordClient);      
+                                break;
+                            }
+                    }
+
+                    // THREAD NOTIFICATION
+                    {
+                        var threads = Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).GetAllThreads();
+                        var feedbackChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "feedback");
+                        var embedBuilder = new EmbedBuilder()
+                            .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
+                            .WithDescription("Come join the governance discussion and voting! Today's topics:")
+                            .WithCurrentTimestamp()
+                            .WithColor(Color.Orange);
+                        for(int i = 0; i < threads.Count; i++)
+                        {
+                            embedBuilder.AddField(threads[i].GetThreadHeader(), "#" + threads[i].GetThreadChannelName());
+                        }
+
+                        await feedbackChannel.SendMessageAsync(null, false, embedBuilder.Build());
+                    }
+                }
+                
+                // RANDOM MESSAGING
+                if ((DateTime.UtcNow - Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).GetTimeSinceLastMessage()).TotalHours >= _timeBetweenMessagesInHours)
                 {
                     var rng = new System.Random();
                     var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
                     var generalChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "general");
                     var randomIndex = rng.Next(0, _randomMessages.Count);
-                    await generalChannel.SendMessageAsync(_randomMessages[randomIndex]);
-                    Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).TimeSinceLastMessage = DateTime.UtcNow;
+                    var embedBuilder = new EmbedBuilder()
+                        .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
+                        .WithDescription(_randomMessages[randomIndex])
+                        .WithCurrentTimestamp()
+                        .WithColor(Color.Orange);
+
+                    await generalChannel.SendMessageAsync(null, false, embedBuilder.Build());
+                    Database.GetDatabase<DatabaseSettings>(DatabaseType.Settings).SetTimeSinceLastMessage(DateTime.UtcNow);
                     Database.IsDirty = true;
                 }
 
-                // THREAD DELETION
+                // THREAD UPDATES AND DELETION
                 await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).TestAllThreads(_discordClient);
             }
             catch (Exception ex)
@@ -253,10 +311,14 @@ namespace EMBRS
         {
             try
             {
+                await Program.Log(new LogMessage(LogSeverity.Info, "Channel", "Destroyed"));
+
                 var channelId = arg.Id;
-                if (await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId))
+                if (Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId))
                 {
                     await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).DeleteThread(channelId);
+                    await Program.Log(new LogMessage(LogSeverity.Info, "Thread", "Deleted"));
+                    Database.IsDirty = true;
                 }
             }
             catch (Exception ex)
@@ -269,13 +331,20 @@ namespace EMBRS
         {
             try
             {
+                await Program.Log(new LogMessage(LogSeverity.Info, "Message", "Deleted"));
+
                 var messageId = arg1.Id;
                 var channelId = arg2.Id;
 
-                if (await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId))
+                if (Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId))
                 {
                     var thread = await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).GetThreadByChannelId(channelId);
-                    if (await thread.ContainsThreadMessageByMessageId(messageId)) await thread.DeleteThreadMessage(messageId);
+                    if (await thread.ContainsThreadMessageByMessageId(messageId))
+                    {
+                        await thread.DeleteThreadMessage(messageId);
+                        await Program.Log(new LogMessage(LogSeverity.Info, "Thread Message", "Deleted"));
+                        Database.IsDirty = true;
+                    }
                 }
             }
             catch (Exception ex)
@@ -291,7 +360,8 @@ namespace EMBRS
                 var msg = arg as SocketUserMessage;
                 var channelId = msg.Channel.Id;
 
-                if (await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId) && !msg.Author.IsBot)
+                if (Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId) && !msg.Author.IsBot &&
+                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(msg.Author.Id) && Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(msg.Author.Id).GetIsRegistered())
                 {
                     var userInfo = msg.Author;
                     var channel = msg.Channel;
@@ -299,18 +369,55 @@ namespace EMBRS
                     var thread = await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).GetThreadByChannelId(channelId);
                     var threadMessage = await thread.AddThreadMessage(arg.Author.Id, msg.Content);
 
-                    var embedBuiler = new EmbedBuilder()
-                        .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
-                        .WithDescription(msg.Content)
-                        .WithCurrentTimestamp()
-                        .WithColor(Color.Orange);
+                    if (arg.Type == MessageType.Reply)
+                    {
+                        var originalMessageId = arg.Reference.MessageId.Value;
+                        if (await thread.ContainsThreadMessageByMessageId(originalMessageId))
+                        {
+                            var originalThreadMessage = await thread.GetThreadMessageByMessageId(originalMessageId);
+                            var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
+                            var originalUser = guild.GetUser(originalThreadMessage.GetThreadMessageAuthor());
 
-                    var message = await channel.SendMessageAsync(null, false, embedBuiler.Build());
-                    threadMessage.SetThreadMessageChannelId(message.Id);
+                            var embedBuiler = new EmbedBuilder()
+                                .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                                .WithCurrentTimestamp()
+                                .WithColor(Color.Orange)
+                                .AddField($"@{originalUser.Username}#{originalUser.Discriminator} wrote", ">>> " + originalThreadMessage.GetThreadMessageContent())
+                                .AddField(string.Empty, msg.Content);
+
+                            var message = await channel.SendMessageAsync(null, false, embedBuiler.Build());
+                            threadMessage.SetThreadMessageChannelId(message.Id);
+                        }
+                        else
+                        {
+                            var embedBuiler = new EmbedBuilder()
+                                .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                                .WithDescription(msg.Content)
+                                .WithCurrentTimestamp()
+                                .WithColor(Color.Orange);
+
+                            var message = await channel.SendMessageAsync(null, false, embedBuiler.Build());
+                            threadMessage.SetThreadMessageChannelId(message.Id);
+                        }
+                    }
+                    else
+                    {
+                        var embedBuiler = new EmbedBuilder()
+                            .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                            .WithDescription(msg.Content)
+                            .WithCurrentTimestamp()
+                            .WithColor(Color.Orange);
+
+                        var message = await channel.SendMessageAsync(null, false, embedBuiler.Build());
+                        threadMessage.SetThreadMessageChannelId(message.Id);
+                    }
 
                     await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).UpdateThreadPositionInChannel(thread, _discordClient);
                     await msg.DeleteAsync();
+
+                    Database.IsDirty = true;
                 }
+                else await msg.DeleteAsync();
             }
             catch (Exception ex)
             {
@@ -334,16 +441,6 @@ namespace EMBRS
                         .AddOption("header", ApplicationCommandOptionType.String, "Topic header", isRequired: true)
                         .AddOption("content", ApplicationCommandOptionType.String, "Topic content", isRequired: true);
                     await guild.CreateApplicationCommandAsync(addTopicCommand.Build());
-                }
-
-                if (!_updateCommands && commands.Any(r => r.Name == "end")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "End"));
-                else
-                {
-                    var endCommand = new SlashCommandBuilder()
-                        .WithName("end")
-                        .WithDescription("End currently running Emberlight tournament.")
-                        .AddOption("week", ApplicationCommandOptionType.String, "Current week", isRequired: true);
-                    await guild.CreateApplicationCommandAsync(endCommand.Build());
                 }
 
                 if (!_updateCommands && commands.Any(r => r.Name == "faucet")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Faucet"));
@@ -383,16 +480,6 @@ namespace EMBRS
                     await guild.CreateApplicationCommandAsync(registerCommand.Build());
                 }
 
-                if (!_updateCommands && commands.Any(r => r.Name == "select")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Select"));
-                else
-                {
-                    var selectCommand = new SlashCommandBuilder()
-                        .WithName("select")
-                        .WithDescription("Select random Emberlight tournament winners.")
-                        .AddOption("amount", ApplicationCommandOptionType.Integer, "The random winner amount", isRequired: true);
-                    await guild.CreateApplicationCommandAsync(selectCommand.Build());
-                }
-
                 if (!_updateCommands && commands.Any(r => r.Name == "setwinner")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "SetWinner"));
                 else
                 {
@@ -401,17 +488,6 @@ namespace EMBRS
                         .WithDescription("Set Emberlight tournament winner.")
                         .AddOption("user", ApplicationCommandOptionType.User, "The user to set as winner", isRequired: true);
                     await guild.CreateApplicationCommandAsync(setWinnerCommand.Build());
-                }
-
-                if (!_updateCommands && commands.Any(r => r.Name == "start")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Start"));
-                else
-                {
-                    var startCommand = new SlashCommandBuilder()
-                        .WithName("start")
-                        .WithDescription("Start currently running Emberlight tournament.")
-                        .AddOption("achievement", ApplicationCommandOptionType.String, "The week's tournament goal", isRequired: true)
-                        .AddOption("week", ApplicationCommandOptionType.String, "Current week", isRequired: true);
-                    await guild.CreateApplicationCommandAsync(startCommand.Build());
                 }
 
                 if (!_updateCommands && commands.Any(r => r.Name == "status")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Status"));
@@ -455,6 +531,49 @@ namespace EMBRS
                     await guild.CreateApplicationCommandAsync(tournamentCommand.Build());
                 }
 
+                if (!_updateCommands && commands.Any(r => r.Name == "tournamentgoal")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Tournament Goal"));
+                else
+                {
+                    var tournamentGoalCommand = new SlashCommandBuilder()
+                       .WithName("tournamentgoal")
+                       .WithDescription("Set the tournament achievement.")
+                       .AddOption("achievement", ApplicationCommandOptionType.String, "Achievement", isRequired: true);
+                    await guild.CreateApplicationCommandAsync(tournamentGoalCommand.Build());
+                }
+
+                if (!_updateCommands && commands.Any(r => r.Name == "tournamentreward")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Tournament Reward"));
+                else
+                {
+                    var tournamentRewardCommand = new SlashCommandBuilder()
+                       .WithName("tournamentreward")
+                       .WithDescription("Add the tournament reward.")
+                       .AddOption("topreward", ApplicationCommandOptionType.String, "Top Random Reward", isRequired: true)
+                       .AddOption("nextreward", ApplicationCommandOptionType.String, "Next Random Reward", isRequired: true)
+                       .AddOption("normalreward", ApplicationCommandOptionType.String, "Normal Reward", isRequired: true);
+                    await guild.CreateApplicationCommandAsync(tournamentRewardCommand.Build());
+                }
+
+                if (!_updateCommands && commands.Any(r => r.Name == "tournamentsponsor")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Tournament Sponsor"));
+                else
+                {
+                    var tournamentSponsorCommand = new SlashCommandBuilder()
+                       .WithName("tournamentsponsor")
+                       .WithDescription("Add a tournament sponsor.")
+                       .AddOption("sponsorname", ApplicationCommandOptionType.String, "Sponsor Name", isRequired: true)
+                       .AddOption("sponsorurl", ApplicationCommandOptionType.String, "Sponsor URL", isRequired: true)
+                       .AddOption("imageurl", ApplicationCommandOptionType.String, "Sponsor Logo URL", isRequired: true);
+                    await guild.CreateApplicationCommandAsync(tournamentSponsorCommand.Build());
+                }
+
+                if (!_updateCommands && commands.Any(r => r.Name == "tournamentstatus")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Tournament Status"));
+                else
+                {
+                    var tournamentStatusCommand = new SlashCommandBuilder()
+                       .WithName("tournamentstatus")
+                       .WithDescription("Check the current Emberlight tournament status.");
+                    await guild.CreateApplicationCommandAsync(tournamentStatusCommand.Build());
+                }
+
                 if (!_updateCommands && commands.Any(r => r.Name == "unregister")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Unregister"));
                 else
                 {
@@ -478,7 +597,13 @@ namespace EMBRS
                 threadDatabase.SetCategoryId(guild.CategoryChannels.FirstOrDefault(category => category.Name.ToLower() == "governance").Id);
 
                 var updateChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "updates");
-                await updateChannel.SendMessageAsync("**EMBRS Forged bot is now online! Please check above GitHub check-in for latest changes!**");
+                var embedBuilder = new EmbedBuilder()
+                    .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
+                    .WithDescription("EMBRS Forged bot is now online! Please check above GitHub check-in for latest changes!")
+                    .WithCurrentTimestamp()
+                    .WithColor(Color.Orange);
+
+                await updateChannel.SendMessageAsync(null, false, embedBuilder.Build());
                 _ready = true;
             }
             catch (HttpException exception)

@@ -26,6 +26,16 @@ namespace EMBRS
             return _threadMessageChannelId;
         }
 
+        public ulong GetThreadMessageAuthor()
+        {
+            return _threadMessageAuthor;
+        }
+
+        public string GetThreadMessageContent()
+        {
+            return _threadMessageContent;
+        }
+
         public void SetThreadMessageChannelId(ulong threadMessageChannelId)
         {
             _threadMessageChannelId = threadMessageChannelId;

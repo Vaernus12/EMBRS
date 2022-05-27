@@ -24,6 +24,7 @@ namespace EMBRS
         [JsonProperty] private Dictionary<ulong, bool> _threadVotes;
         [JsonProperty] private List<ThreadMessage> _threadDiscussion;
         [JsonProperty] private ulong _nextThreadMessageId = 1;
+        [JsonProperty] private bool _threadRewarded;
 
         private readonly Regex regex = new Regex("[^a-zA-Z0-9 _]");
 
@@ -40,6 +41,7 @@ namespace EMBRS
             _threadContent = content;
             _threadVotes = new Dictionary<ulong, bool>();
             _threadDiscussion = new List<ThreadMessage>();
+            _threadRewarded = false;
         }
 
         public ulong GetThreadId()
@@ -86,9 +88,34 @@ namespace EMBRS
             return _threadHeader;
         }
 
+        public ulong GetThreadAuthor()
+        {
+            return _threadAuthor;
+        }
+
         public string GetThreadContent()
         {
             return _threadContent;
+        }
+
+        public bool GetThreadRewarded()
+        {
+            return _threadRewarded;
+        }
+
+        public void SetThreadRewarded(bool rewarded)
+        {
+            _threadRewarded = rewarded;
+        }
+
+        public List<ThreadMessage> GetThreadDiscussion()
+        {
+            return _threadDiscussion;
+        }
+
+        public Dictionary<ulong, bool> GetVotes()
+        {
+            return _threadVotes;
         }
 
         public async Task SetVote(ulong author, bool vote, DiscordSocketClient client = null)
@@ -111,11 +138,14 @@ namespace EMBRS
         {
             _threadUpdated = DateTime.UtcNow;
 
+            await Program.Log(new LogMessage(LogSeverity.Info, "Thread: " + _threadHeader, "Updating thread embed with id: " + _threadEmbedId));
+
             var guild = client.GetGuild(ulong.Parse(Settings.GuildID));
             var author = guild.GetUser(_threadAuthor);
             var channel = guild.TextChannels.FirstOrDefault(x => x.Id == _threadChannelId);
             var message = await channel.GetMessageAsync(_threadEmbedId) as IUserMessage;
 
+            if(message == null) await Program.Log(new LogMessage(LogSeverity.Info, "Thread: " + _threadHeader, "Did not find thread embed with id: " + _threadEmbedId));
             var yesVotes = 0;
             var noVotes = 0;
 
@@ -129,7 +159,7 @@ namespace EMBRS
                 .WithAuthor(author.ToString(), author.GetAvatarUrl() ?? author.GetDefaultAvatarUrl())
                 .WithTitle(_threadHeader)
                 .WithDescription(_threadContent)
-                .AddField("Yes Votes", yesVotes.ToString())
+                .AddField("Yes Votes", yesVotes.ToString(), true)
                 .AddField("No Votes", noVotes.ToString(), true)
                 .WithCurrentTimestamp()
                 .WithColor(Color.Orange);
@@ -139,6 +169,8 @@ namespace EMBRS
                 x.Embed = embedBuiler.Build();
 
             });
+
+            await Program.Log(new LogMessage(LogSeverity.Info, "Thread: " + _threadHeader, "Update complete"));
         }
 
         public async Task<bool> ContainsThreadMessageByMessageId(ulong messageId)

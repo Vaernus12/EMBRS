@@ -45,8 +45,8 @@ namespace EMBRS
             if (_registeredUsers.ContainsKey(id))
             {
                 var user = _registeredUsers[id];
-                user.XrpAddress = xrpAddress;
-                user.IsRegistered = true;
+                user.SetXRPAddress(xrpAddress);
+                user.SetIsRegistered(true);
             }
         }
 

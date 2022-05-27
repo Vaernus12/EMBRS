@@ -1,23 +1,37 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 
 namespace EMBRS
 {
     [Serializable]
     public class DatabaseSettings : DatabaseBase
     {
-        public bool SundayMessage = false;
-        public bool MondayMessage = false;
-        public bool TuesdayTournamentMessage = false;
-        public bool WednesdayTournamentMessage = false;
-        public bool ThursdayTournamentMessage = false;
-        public bool FridayTournamentMessage = false;
-        public bool SaturdayMessage = false;
-
-        public DateTime TimeSinceLastMessage = DateTime.MinValue;
+        [JsonProperty("TimeSinceLastMessage")] private DateTime _timeSinceLastMessage = DateTime.MinValue;
+        [JsonProperty("SavedDayOfWeek")] private DayOfWeek _savedDayOfWeek = DateTime.UtcNow.DayOfWeek;
 
         public DatabaseSettings()
         {
             Type = DatabaseType.Settings;
+        }
+
+        public DateTime GetTimeSinceLastMessage()
+        {
+            return _timeSinceLastMessage;
+        }
+
+        public void SetTimeSinceLastMessage(DateTime time)
+        {
+            _timeSinceLastMessage = time;
+        }
+
+        public DayOfWeek GetSavedDayOfWeek()
+        {
+            return _savedDayOfWeek;
+        }
+
+        public void SetSavedDayOfWeek(DayOfWeek dayOfWeek)
+        {
+            _savedDayOfWeek = dayOfWeek;
         }
     }
 }

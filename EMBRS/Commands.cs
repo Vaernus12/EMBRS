@@ -55,15 +55,6 @@ namespace EMBRS_Discord
                             });
                             break;
                         }
-                    case "end":
-                        {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "end"));
-                            var endTask = Task.Run(async () =>
-                            {
-                                await HandleEndCommand(command);
-                            });
-                            break;
-                        }
                     case "faucet":
                         {
                             await Program.Log(new LogMessage(LogSeverity.Info, "Command", "faucet"));
@@ -100,30 +91,12 @@ namespace EMBRS_Discord
                             });
                             break;
                         }
-                    case "select":
-                        {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "select"));
-                            var selectTask = Task.Run(async () =>
-                            {
-                                await HandleSelectCommand(command);
-                            });
-                            break;
-                        }
                     case "setwinner":
                         {
                             await Program.Log(new LogMessage(LogSeverity.Info, "Command", "setwinner"));
                             var setwinnerTask = Task.Run(async () =>
                             {
                                 await HandleSetWinnerCommand(command);
-                            });
-                            break;
-                        }
-                    case "start":
-                        {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "start"));
-                            var startTask = Task.Run(async () =>
-                            {
-                                await HandleStartCommand(command);
                             });
                             break;
                         }
@@ -160,6 +133,42 @@ namespace EMBRS_Discord
                             var tournamentTask = Task.Run(async () =>
                             {
                                 await HandleTournamentCommand(command);
+                            });
+                            break;
+                        }
+                    case "tournamentgoal":
+                        {
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "tournamentgoal"));
+                            var tournamentGoalTask = Task.Run(async () =>
+                            {
+                                await HandleTournamentGoalCommand(command);
+                            });
+                            break;
+                        }
+                    case "tournamentreward":
+                        {
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "tournamentreward"));
+                            var tournamentRewardTask = Task.Run(async () =>
+                            {
+                                await HandleTournamentRewardCommand(command);
+                            });
+                            break;
+                        }
+                    case "tournamentsponsor":
+                        {
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "tournamentsponsor"));
+                            var tournamentSponsorTask = Task.Run(async () =>
+                            {
+                                await HandleTournamentSponsorCommand(command);
+                            });
+                            break;
+                        }
+                    case "tournamentstatus":
+                        {
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "tournamentstatus"));
+                            var tournamentStatusTask = Task.Run(async () =>
+                            {
+                                await HandleTournamentStatusCommand(command);
                             });
                             break;
                         }
@@ -204,42 +213,6 @@ namespace EMBRS_Discord
 
                 var thread = await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).CreateThread(userInfo, header, content, _discordClient);
                 await command.FollowupAsync("New thread created in channel #" + thread.GetThreadChannelName() + " under Governance category!", ephemeral: true);
-            }
-            catch (Exception ex)
-            {
-                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
-            }
-        }
-
-        private async Task HandleEndCommand(SocketSlashCommand command)
-        {
-            try
-            {
-                if (!await CheckForTimeBetweenCommands(command)) return;
-                if (!await CheckIfAdmin(command)) return;
-                if (!await CheckIfCorrectChannel(command, "tournament")) return;
-
-                var userInfo = command.User as SocketGuildUser;
-                var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                var tournamentRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament");
-                var winnerRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament Winner");
-                var roles = new List<SocketRole>() { tournamentRole, winnerRole };
-
-                var users = await command.Channel.GetUsersAsync().FlattenAsync<IUser>();
-                foreach (IGuildUser user in users)
-                {
-                    await user.RemoveRolesAsync(roles);
-                }
-
-                foreach (var user in Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccounts())
-                {
-                    user.TournamentWinner = false;
-                    user.ReceivedTournamentReward = false;
-                    user.InTournament = false;
-                }
-
-                var message = (string)command.Data.Options.First().Value;
-                await command.FollowupAsync("Thank you to everyone that participated in the week " + message + " Emberlight tournament! Sign-ups for week " + (int.Parse(message) + 1).ToString() + " will start tomorrow. Check #announcements for more details.");
 
                 Database.IsDirty = true;
             }
@@ -253,13 +226,15 @@ namespace EMBRS_Discord
         {
             try
             {
-                if (!await CheckForTimeBetweenFaucet(command)) return;
+                if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfRegistered(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
+                if (await CheckIfReceivedFaucetReward(command)) return;
 
                 var userInfo = command.User as SocketGuildUser;
-                await XRPL.SendRewardAsync(command, null, userInfo, Settings.FaucetTokenAmt, false, false, true);
-                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).EMBRSEarned += float.Parse(Settings.FaucetTokenAmt);
+                await XRPL.SendRewardAsync(null, command, null, userInfo, Settings.FaucetTokenAmt, false, true);
+                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).ModEMBRSEarned(float.Parse(Settings.FaucetTokenAmt));
+                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).SetReceivedFaucetReward(true);
                 Database.IsDirty = true;
 
             }
@@ -305,6 +280,7 @@ namespace EMBRS_Discord
                     .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
                     .WithDescription(stringBuilder.ToString())
                     .WithColor(Color.Orange)
+                    .AddField("/addtopic", "Create a new governance topic and generate a Discord channel for discussion and voting (#bot-commands)")
                     .AddField("/faucet", "Receive daily EMBRS from faucet (#bot-commands)")
                     .AddField("/help", "Show EMBRS bot command list (#bot-commands)")
                     .AddField("/register <xrpaddress>", "Register your Discord username and XRP address for faucet, rewards, DEX swaps, and tips (#bot-commands)")
@@ -312,7 +288,8 @@ namespace EMBRS_Discord
                     .AddField("/swap <from> <to> <amount>", swapStringBuilder.ToString())
                     .AddField("/tip <recipient> <amount>", tipStringBuilder.ToString())
                     .AddField("/tournament", "Sign-up for the current week's Emberlight tournament (#bot-commands)")
-                    .AddField("/unregister", "Unregister from the EMBRS bot (#bot-commands)");
+                    .AddField("/unregister", "Unregister from the EMBRS bot (#bot-commands)")
+                    .AddField("/vote", "Vote on a governance topic within the Discord channel (any governance topic channel)");
 
                 await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
             }
@@ -333,7 +310,13 @@ namespace EMBRS_Discord
                 var userInfo = command.User as SocketGuildUser;
                 var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
                 var updateChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "updates");
-                await updateChannel.SendMessageAsync("**EMBRS Forged bot is shutting down for maintenance!**");
+                var embedBuilder = new EmbedBuilder()
+                    .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
+                    .WithDescription("EMBRS Forged bot is shutting down for maintenance!")
+                    .WithCurrentTimestamp()
+                    .WithColor(Color.Orange);
+
+                await updateChannel.SendMessageAsync(null, false, embedBuilder.Build());
                 await command.FollowupAsync("EMBRS maintenance ready", ephemeral: true);
                 await Program.Shutdown();
 
@@ -353,7 +336,7 @@ namespace EMBRS_Discord
 
                 var userInfo = command.User as SocketGuildUser;
                 var xrpAddress = (string)command.Data.Options.First().Value;
-                if (!Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).IsRegistered)
+                if (!Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetIsRegistered())
                 {
                     Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).RegisterAccount(userInfo.Id, xrpAddress);
                     await command.FollowupAsync("You are registered with EMBRS bot!", ephemeral: true);
@@ -372,122 +355,6 @@ namespace EMBRS_Discord
             }
         }
 
-        private async Task HandleSelectCommand(SocketSlashCommand command)
-        {
-            try
-            {
-                if (!await CheckForTimeBetweenCommands(command)) return;
-                if (!await CheckIfAdmin(command)) return;
-                if (!await CheckIfCorrectChannel(command, "winners")) return;
-
-                var userInfo = command.User as SocketGuildUser;
-                var amount = (Int64)command.Data.Options.First().Value;
-                var users = await command.Channel.GetUsersAsync().FlattenAsync<IUser>();
-                var usersList = new List<IUser>(users);
-                var removeList = new List<IUser>();
-
-                for (int i = 0; i < usersList.Count; i++)
-                {
-                    var user = usersList[i] as SocketGuildUser;
-                    if (!user.Roles.Any(r => r.Name == "Tournament Winner"))
-                    {
-                        removeList.Add(user);
-                    }
-                }
-
-                for (int i = 0; i < removeList.Count; i++)
-                {
-                    usersList.Remove(removeList[i]);
-                }
-
-                var rng = new System.Random();
-                var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                var earlyAccessRole = guild.Roles.FirstOrDefault(x => x.Name == "Early Supporters");
-
-                var stringBuilder = new StringBuilder();
-
-                if (usersList.Count > 0)
-                {
-                    for (int i = 0; i < amount; i++)
-                    {
-                        var index = rng.Next(0, usersList.Count);
-                        var user = usersList[index] as SocketGuildUser;
-                        if (usersList.Count > 1) usersList.RemoveAt(index);
-
-                        stringBuilder.Append($"@{user.Username}#{user.Discriminator}");
-                        if (i == 0)
-                        {
-                            stringBuilder.Append($" - 1100 EMBRS and early access slot to Emberlight: Rekindled!");
-                            if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ReceivedTournamentReward)
-                            {
-                                await XRPL.SendRewardAsync(command, null, user, "1000");
-                                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += 1000;
-                            }
-                            else
-                            {
-                                await XRPL.SendRewardAsync(command, null, user, "1100");
-                                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += 1100;
-                            }
-
-                            await user.AddRoleAsync(earlyAccessRole);
-                            Database.IsDirty = true;
-                        }
-                        else
-                        {
-                            stringBuilder.Append($" - 600 EMBRS and early access slot to Emberlight: Rekindled!");
-                            if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ReceivedTournamentReward)
-                            {
-                                await XRPL.SendRewardAsync(command, null, user, "500");
-                                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += 500;
-                            }
-                            else
-                            {
-                                await XRPL.SendRewardAsync(command, null, user, "600");
-                                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += 600;
-                            }
-
-                            Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ReceivedTournamentReward = true;
-
-                            await user.AddRoleAsync(earlyAccessRole);
-                            Database.IsDirty = true;
-                        }
-                        stringBuilder.AppendLine();
-                    }
-
-                    if (usersList.Count > 0)
-                    {
-                        for (int i = 0; i < usersList.Count; i++)
-                        {
-                            var user = usersList[i] as SocketGuildUser;
-                            stringBuilder.Append($"@{user.Username}#{user.Discriminator}");
-                            stringBuilder.Append($" - 100 EMBRS!");
-
-                            if (!Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ReceivedTournamentReward)
-                            {
-                                await XRPL.SendRewardAsync(command, null, user, "100");
-                                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += 100;
-                                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ReceivedTournamentReward = true;
-                            }
-
-                            stringBuilder.AppendLine();
-                        }
-                    }
-                }
-
-                var embedBuiler = new EmbedBuilder()
-                    .WithTitle("Tournament Results")
-                    .WithColor(Color.Orange)
-                    .AddField("Winners", stringBuilder.ToString())
-                    .AddField("Congratulations!", "We will be ending the Emberlight tournament shortly! If you have any questions, please let us know here!");
-
-                await command.FollowupAsync(embed: embedBuiler.Build());
-            }
-            catch (Exception ex)
-            {
-                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
-            }
-        }
-
         private async Task HandleSetWinnerCommand(SocketSlashCommand command)
         {
             try
@@ -498,48 +365,11 @@ namespace EMBRS_Discord
 
                 var userInfo = command.User as SocketGuildUser;
                 var guildUser = (SocketGuildUser)command.Data.Options.First().Value;
-                if (!Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(guildUser.Id) || !Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(guildUser.Id).IsRegistered)
+                if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(guildUser.Id).GetIsRegistered())
                 {
-                    await command.FollowupAsync($"{guildUser.Username}#{guildUser.Discriminator} is not registered with EMBRS!");
-                }
-                else
-                {
-                    var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                    var winnerRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament Winner");
-                    await guildUser.AddRoleAsync(winnerRole);
+                    await Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).AddTournamentWinner(_discordClient, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(guildUser.Id));
                     await command.FollowupAsync($"A winner is {guildUser.Username}#{guildUser.Discriminator}!");
-                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(guildUser.Id).TournamentWinner = true;
-                    Database.IsDirty = true;
                 }
-            }
-            catch (Exception ex)
-            {
-                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
-            }
-        }
-
-        private async Task HandleStartCommand(SocketSlashCommand command)
-        {
-            try
-            {
-                if (!await CheckForTimeBetweenCommands(command)) return;
-                if (!await CheckIfAdmin(command)) return;
-                if (!await CheckIfCorrectChannel(command, "tournament")) return;
-
-                var userInfo = command.User as SocketGuildUser;
-                var achievement = (string)command.Data.Options.SingleOrDefault(r => r.Name == "achievement").Value;
-                var week = (string)command.Data.Options.SingleOrDefault(r => r.Name == "week").Value;
-
-
-                var stringBuilder = new StringBuilder();
-                stringBuilder.Append("**The Emberlight tournament has started! Week " + week + "'s achievement is: **");
-                stringBuilder.AppendLine();
-                stringBuilder.AppendLine();
-                stringBuilder.Append("**" + achievement + "**");
-                stringBuilder.AppendLine();
-                stringBuilder.AppendLine();
-                stringBuilder.Append("**Good luck!**");
-                await command.FollowupAsync(stringBuilder.ToString());
             }
             catch (Exception ex)
             {
@@ -556,7 +386,7 @@ namespace EMBRS_Discord
 
                 var userInfo = command.User as SocketGuildUser;
 
-                if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).IsRegistered)
+                if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetIsRegistered())
                 {
                     var xrp = 0.0m;
                     var embrs = 0.0m;
@@ -566,13 +396,13 @@ namespace EMBRS_Discord
                     IRippleClient client = new RippleClient(Settings.WebSocketUrl);
                     client.Connect();
                     {
-                        xrp = await XRPL.ReturnAccountBalance(client, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).XrpAddress);
+                        xrp = await XRPL.ReturnAccountBalance(client, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetXRPAddress());
                         System.Threading.Thread.Sleep(Settings.AccountLinesThrottle * 1000);
 
                         string marker = "";
                         do
                         {
-                            var returnObj = await XRPL.ReturnTrustLines(client, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).XrpAddress, marker);
+                            var returnObj = await XRPL.ReturnTrustLines(client, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetXRPAddress(), marker);
                             if (embrs == 0.0m) embrs = returnObj.EMBRSBalance;
                             if (stx == 0.0m) stx = returnObj.STXBalance;
                             if (usd == 0.0m) usd = returnObj.USDBalance;
@@ -593,13 +423,13 @@ namespace EMBRS_Discord
 
                     var embedBuiler = new EmbedBuilder()
                         .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
-                        .WithTitle(Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).XrpAddress)
+                        .WithTitle(Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetXRPAddress())
                         .WithColor(Color.Orange)
                         .AddField("Balances", stringBuilder.ToString())
-                        .AddField("EMBRS Earned", Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).EMBRSEarned)
-                        .AddField("In Tournament", Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).InTournament)
-                        .AddField("Won Tournament", Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).TournamentWinner)
-                        .AddField("Received Tournament Reward", Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).ReceivedTournamentReward);
+                        .AddField("EMBRS Earned", Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetEMBRSEarned())
+                        .AddField("Received Faucet Reward", Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).ReceivedFaucetReward())
+                        .AddField("In Tournament", Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetInTournament())
+                        .AddField("Won Tournament", Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetTournamentWinner());
 
                     await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
                 }
@@ -861,20 +691,20 @@ namespace EMBRS_Discord
                 var user = (SocketGuildUser)command.Data.Options.SingleOrDefault(r => r.Name == "user").Value;
                 var amount = (double)command.Data.Options.SingleOrDefault(r => r.Name == "amount").Value;
 
-                if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(user.Id) && Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).IsRegistered)
+                if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(user.Id) && Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).GetIsRegistered())
                 {
                     var tipAmount = string.Empty;
                     if (userInfo.Roles.Any(r => r.Name == "Leads"))
                     {
                         await command.FollowupAsync("Beginning server tip", ephemeral: true);
                         tipAmount = Math.Min(amount, float.Parse(Settings.MaxTipTokenAmt)).ToString();
-                        await XRPL.SendRewardAsync(command, userInfo, user, tipAmount, false, true, false);
-                        Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += float.Parse(tipAmount);
+                        await XRPL.SendRewardAsync(null, command, userInfo, user, tipAmount, true, false);
+                        Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ModEMBRSEarned(float.Parse(tipAmount));
                         Database.IsDirty = true;
                     }
                     else
                     { 
-                        var destination = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).XrpAddress;
+                        var destination = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).GetXRPAddress();
                         var currencyAmount = new Currency { CurrencyCode = Settings.CurrencyCode, Issuer = Settings.IssuerAddress, Value = amount.ToString() };
 
                         var converter = new CurrencyConverter();
@@ -909,7 +739,7 @@ namespace EMBRS_Discord
                                 if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
                                 {
                                     await command.FollowupAsync($"**{userInfo.Username}#{userInfo.Discriminator} sent {user.Username}#{user.Discriminator} a tip of {amount} EMBRS!**");
-                                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += (float)amount;
+                                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ModEMBRSEarned((float)amount);
                                     Database.IsDirty = true;
                                     break;
                                 }
@@ -944,7 +774,7 @@ namespace EMBRS_Discord
                                 if (getPayload.Meta.Resolved && getPayload.Meta.Signed)
                                 {
                                     await command.FollowupAsync($"**{userInfo.Username}#{userInfo.Discriminator} sent {user.Username}#{user.Discriminator} a tip of {amount} EMBRS!**");
-                                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).EMBRSEarned += (float)amount;
+                                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ModEMBRSEarned((float)amount);
                                     Database.IsDirty = true;
                                     break;
                                 }
@@ -988,16 +818,136 @@ namespace EMBRS_Discord
 
                 if (DateTime.UtcNow.DayOfWeek == DayOfWeek.Tuesday || DateTime.UtcNow.DayOfWeek == DayOfWeek.Wednesday || DateTime.UtcNow.DayOfWeek == DayOfWeek.Thursday)
                 {
-                    var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                    var tournamentRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament");
-                    await userInfo.AddRoleAsync(tournamentRole);
+                    await Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).AddTournamentParticipant(_discordClient, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id));
                     await command.FollowupAsync("You are signed-up for this week's tournament! Check #tournament for more details.", ephemeral: true);
-                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).InTournament = true;
-                    Database.IsDirty = true;
                 }
                 else
                 {
                     await command.FollowupAsync("Tournament sign-ups for this week are closed. Next week's sign-ups will start on Tuesday!", ephemeral: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+            }
+        }
+
+        private async Task HandleTournamentGoalCommand(SocketSlashCommand command)
+        {
+            try
+            {
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfAdmin(command)) return;
+                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
+
+                var userInfo = command.User as SocketGuildUser;
+                var achievement = (string)command.Data.Options.First().Value;
+                Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).SetTournamentAchievement(achievement);
+                await command.FollowupAsync($"Current week's tournament achievement is set!", ephemeral: true);
+            }
+            catch (Exception ex)
+            {
+                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+            }
+        }
+
+        private async Task HandleTournamentRewardCommand(SocketSlashCommand command)
+        {
+            try
+            {
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfAdmin(command)) return;
+                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
+
+                var userInfo = command.User as SocketGuildUser;
+                var topReward = (string)command.Data.Options.SingleOrDefault(r => r.Name == "topreward").Value;
+                var nextreward = (string)command.Data.Options.SingleOrDefault(r => r.Name == "nextreward").Value;
+                var normalreward = (string)command.Data.Options.SingleOrDefault(r => r.Name == "normalreward").Value;
+                Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).SetTournamentReward(topReward, nextreward, normalreward);
+                await command.FollowupAsync($"Current week's tournament achievement is set!", ephemeral: true);
+            }
+            catch (Exception ex)
+            {
+                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+            }
+        }
+
+        private async Task HandleTournamentSponsorCommand(SocketSlashCommand command)
+        {
+            try
+            {
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfAdmin(command)) return;
+                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
+
+                var userInfo = command.User as SocketGuildUser;
+                var sponsorName = (string)command.Data.Options.SingleOrDefault(r => r.Name == "sponsorname").Value;
+                var sponsorUrl = (string)command.Data.Options.SingleOrDefault(r => r.Name == "sponsorurl").Value;
+                var imageUrl = (string)command.Data.Options.SingleOrDefault(r => r.Name == "imageurl").Value;
+                Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).AddTournamentSponsor(new TournamentSponsor(sponsorName, sponsorUrl, imageUrl));
+                await command.FollowupAsync($"Current week's tournament achievement is set!", ephemeral: true);
+            }
+            catch (Exception ex)
+            {
+                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+            }
+        }
+
+        private async Task HandleTournamentStatusCommand(SocketSlashCommand command)
+        {
+            try
+            {
+                if (!await CheckForTimeBetweenCommands(command)) return;
+                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
+
+                var userInfo = command.User as SocketGuildUser;
+                var status = "";
+
+                switch(Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentStatus())
+                {
+                    case TournamentStatus.Active:
+                        {
+                            status = "Active";
+                            break;
+                        }
+                    case TournamentStatus.HandlingRewards:
+                        {
+                            status = "Handling Tournament Rewards";
+                            break;
+                        }
+                    case TournamentStatus.SignUp:
+                        {
+                            status = "Sign-ups";
+                            break;
+                        }
+                    case TournamentStatus.StartingSoon:
+                        {
+                            status = "Starting Soon";
+                            break;
+                        }
+                }
+
+                var embedBuiler = new EmbedBuilder()
+                    .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                    .WithDescription("Emberlight tournament week " + Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentWeek())
+                    .WithColor(Color.Orange)
+                    .AddField("Tournament Status", status)
+                    .AddField("Achievement", Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentAchievement())
+                    .AddField("Participants", Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentParticipants(_discordClient))
+                    .AddField("Winners", Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentWinners(_discordClient))
+                    .AddField("Reward", Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentReward());
+
+                await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
+
+                foreach(var sponsor in Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentSponsors())
+                {
+                    embedBuiler = new EmbedBuilder()
+                        .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                        .WithTitle(sponsor.GetSponsorName())
+                        .WithThumbnailUrl(sponsor.GetSponsorImageUrl())
+                        .WithUrl(sponsor.GetSponsorUrl())
+                        .WithColor(Color.Orange);
+                    await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
                 }
             }
             catch (Exception ex)
@@ -1046,12 +996,22 @@ namespace EMBRS_Discord
                 {
                     var resultBool = (result.ToLower() == "yes") ? true : (result.ToLower() == "no") ? false : false;
                     var channelId = command.Channel.Id;
-                    if (await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId))
+                    if (Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId))
                     {
                         var thread = await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).GetThreadByChannelId(channelId);
                         await thread.SetVote(userInfo.Id, resultBool);
                         await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).UpdateThreadPositionInChannel(thread, _discordClient);
                         await command.FollowupAsync("Your vote has been applied!", ephemeral: true);
+
+                        var embedBuiler = new EmbedBuilder()
+                            .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                            .WithDescription("Voted: " + result.ToLower())
+                            .WithCurrentTimestamp()
+                            .WithColor(Color.Orange);
+
+                        var message = await command.Channel.SendMessageAsync(null, false, embedBuiler.Build());
+
+                        Database.IsDirty = true;
                     }
                     else
                     {
@@ -1091,7 +1051,7 @@ namespace EMBRS_Discord
             try
             {
                 var userInfo = command.User as SocketGuildUser;
-                if (!Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).IsRegistered)
+                if (!Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetIsRegistered())
                 {
                     await command.FollowupAsync("Please /register to use this command!", ephemeral: true);
                     return false;
@@ -1121,6 +1081,26 @@ namespace EMBRS_Discord
             }
         }
 
+        private async Task<bool> CheckIfReceivedFaucetReward(SocketSlashCommand command)
+        {
+            try
+            {
+                var userInfo = command.User as SocketGuildUser;
+                if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).ReceivedFaucetReward())
+                {
+                    await command.FollowupAsync("You have already received today's faucet reward!", ephemeral: true);
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+                return true;
+            }
+        }
+
         private async Task<bool> CheckForTimeBetweenCommands(SocketSlashCommand command)
         {
             try
@@ -1128,57 +1108,21 @@ namespace EMBRS_Discord
                 var userInfo = command.User as SocketGuildUser;
                 if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(userInfo.Id))
                 {
-                    if ((DateTime.UtcNow - Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastCommandTime).TotalSeconds < Settings.MinCommandTime)
+                    if ((DateTime.UtcNow - Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetLastCommandTime()).TotalSeconds < Settings.MinCommandTime)
                     {
-                        await command.FollowupAsync("Not enough time between commands. Try again!", ephemeral: true);
+                        var nextCommandTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetLastCommandTime().AddSeconds(Settings.MinCommandTime) - DateTime.UtcNow;
+                        string formattedTimeSpan = nextCommandTime.ToString(@"ss");
+                        await command.FollowupAsync("Not enough time between commands. Please try again in " + formattedTimeSpan + " seconds!", ephemeral: true);
                         return false;
                     }
 
-                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastCommandTime = DateTime.UtcNow;
+                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).SetLastCommandTime(DateTime.UtcNow);
                     Database.IsDirty = true;
                 }
                 else
                 {
                     var account = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).AddAccount(userInfo.Id);
-                    account.LastCommandTime = DateTime.UtcNow;
-                    Database.IsDirty = true;
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
-                return false;
-            }
-        }
-
-        private async Task<bool> CheckForTimeBetweenFaucet(SocketSlashCommand command)
-        {
-            try
-            {
-                var userInfo = command.User as SocketGuildUser;
-                if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(userInfo.Id))
-                {
-                    if ((DateTime.UtcNow - Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastFaucetTime).TotalHours < Settings.MinFaucetTime)
-                    {
-                        var nextFaucetTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastFaucetTime.AddHours(Settings.MinFaucetTime) - DateTime.UtcNow;
-                        string formattedTimeSpan = nextFaucetTime.ToString(@"hh\:mm\:ss");
-                        string timeSeparator = CultureInfo.CurrentCulture.DateTimeFormat.TimeSeparator;
-                        formattedTimeSpan = formattedTimeSpan.Replace(":", timeSeparator);
-                        await command.FollowupAsync("Faucet is available once every 24 hours. Please try again in " + formattedTimeSpan + "!", ephemeral: true);
-                        return false;
-                    }
-
-                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastCommandTime = DateTime.UtcNow;
-                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastFaucetTime = DateTime.UtcNow;
-                    Database.IsDirty = true;
-                }
-                else
-                {
-                    var account = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).AddAccount(userInfo.Id);
-                    account.LastCommandTime = DateTime.UtcNow;
-                    account.LastFaucetTime = DateTime.UtcNow;
+                    account.SetLastCommandTime(DateTime.UtcNow);
                     Database.IsDirty = true;
                 }
 
@@ -1198,21 +1142,23 @@ namespace EMBRS_Discord
                 var userInfo = command.User as SocketGuildUser;
                 if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(userInfo.Id))
                 {
-                    if ((DateTime.UtcNow - Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastTipTime).TotalSeconds < Settings.MinTipTime)
+                    if ((DateTime.UtcNow - Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetLastTipTime()).TotalSeconds < Settings.MinTipTime)
                     {
-                        await command.FollowupAsync("Swapping/tipping is available once every minute. Please try again later!", ephemeral: true);
+                        var nextSwapTipTime = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetLastTipTime().AddSeconds(Settings.MinTipTime) - DateTime.UtcNow;
+                        string formattedTimeSpan = nextSwapTipTime.ToString(@"ss");
+                        await command.FollowupAsync("Swapping/tipping is available once every minute. Please try again in " + formattedTimeSpan + " seconds!", ephemeral: true);
                         return false;
                     }
 
-                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastCommandTime = DateTime.UtcNow;
-                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).LastTipTime = DateTime.UtcNow;
+                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).SetLastCommandTime(DateTime.UtcNow);
+                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).SetLastTipTime(DateTime.UtcNow);
                     Database.IsDirty = true;
                 }
                 else
                 {
                     var account = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).AddAccount(userInfo.Id);
-                    account.LastCommandTime = DateTime.UtcNow;
-                    account.LastTipTime = DateTime.UtcNow;
+                    account.SetLastCommandTime(DateTime.UtcNow);
+                    account.SetLastTipTime(DateTime.UtcNow);
                     Database.IsDirty = true;
                 }
 

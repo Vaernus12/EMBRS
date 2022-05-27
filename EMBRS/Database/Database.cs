@@ -18,6 +18,7 @@ namespace EMBRS
             _tables.Add(DatabaseType.Accounts, new DatabaseAccounts());
             _tables.Add(DatabaseType.Settings, new DatabaseSettings());
             _tables.Add(DatabaseType.Threads, new DatabaseThreads());
+            _tables.Add(DatabaseType.Tournament, new DatabaseTournament());
             await Read();
             IsDirty = false;
         }
@@ -56,6 +57,10 @@ namespace EMBRS
                     string value = await File.ReadAllTextAsync("EMBRSDatabase2.dat");
                     var settings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto };
                     _tables = JsonConvert.DeserializeObject<Dictionary<DatabaseType, DatabaseBase>>(value, settings);
+                    if (GetDatabase<DatabaseTournament>(DatabaseType.Tournament) == null)
+                    {
+                        _tables.Add(DatabaseType.Tournament, new DatabaseTournament());
+                    }
                     await Program.Log(new LogMessage(LogSeverity.Info, "Database Read", "Complete"));
                 }
             }
