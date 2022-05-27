@@ -14,7 +14,6 @@ namespace EMBRS
     {
         [JsonProperty] private ulong _threadId;
         [JsonProperty] private ulong _threadChannelId;
-        [JsonProperty] private ulong _threadEmbedId;
         [JsonProperty] private DateTime _threadCreation;
         [JsonProperty] private DateTime _threadExpiration;
         [JsonProperty] private DateTime _threadUpdated;
@@ -32,7 +31,6 @@ namespace EMBRS
         {
             _threadId = id;
             _threadChannelId = 0;
-            _threadEmbedId = 0;
             _threadCreation = DateTime.UtcNow;
             _threadExpiration = DateTime.UtcNow.AddDays(Settings.ThreadTimeInDays);
             _threadUpdated = DateTime.UtcNow;
@@ -67,11 +65,6 @@ namespace EMBRS
         public void SetThreadChannelId(ulong threadChannelId)
         {
             _threadChannelId = threadChannelId;
-        }
-
-        public void SetThreadEmbedId(ulong threadEmbedId)
-        {
-            _threadEmbedId = threadEmbedId;
         }
 
         public string GetThreadChannelName()
@@ -118,75 +111,58 @@ namespace EMBRS
             return _threadVotes;
         }
 
-        public async Task SetVote(ulong author, bool vote, DiscordSocketClient client = null)
+        public void SetVote(ulong author, bool vote)
         {
             if (!_threadVotes.ContainsKey(author)) _threadVotes.Add(author, vote);
             else _threadVotes[author] = vote;
-            if (client != null) await UpdateThread(client);
         }
 
-        public async Task<ThreadMessage> AddThreadMessage(ulong author, string description, DiscordSocketClient client = null)
+        public ThreadMessage AddThreadMessage(ulong author, string description)
         {
             var newThreadMessage = new ThreadMessage(_nextThreadMessageId, author, description);
             _nextThreadMessageId++;
             _threadDiscussion.Add(newThreadMessage);
-            if (client != null) await UpdateThread(client);
             return newThreadMessage;
         }
 
-        public async Task UpdateThread(DiscordSocketClient client = null)
+        public uint GetYesVotes()
         {
-            _threadUpdated = DateTime.UtcNow;
+            uint yesVotes = 0;
 
-            await Program.Log(new LogMessage(LogSeverity.Info, "Thread: " + _threadHeader, "Updating thread embed with id: " + _threadEmbedId));
-
-            var guild = client.GetGuild(ulong.Parse(Settings.GuildID));
-            var author = guild.GetUser(_threadAuthor);
-            var channel = guild.TextChannels.FirstOrDefault(x => x.Id == _threadChannelId);
-            var message = await channel.GetMessageAsync(_threadEmbedId) as IUserMessage;
-
-            if(message == null) await Program.Log(new LogMessage(LogSeverity.Info, "Thread: " + _threadHeader, "Did not find thread embed with id: " + _threadEmbedId));
-            var yesVotes = 0;
-            var noVotes = 0;
-
-            foreach(var vote in _threadVotes)
+            foreach (var vote in _threadVotes)
             {
                 if (vote.Value) yesVotes++;
-                else noVotes++;
             }
 
-            var embedBuiler = new EmbedBuilder()
-                .WithAuthor(author.ToString(), author.GetAvatarUrl() ?? author.GetDefaultAvatarUrl())
-                .WithTitle(_threadHeader)
-                .WithDescription(_threadContent)
-                .AddField("Yes Votes", yesVotes.ToString(), true)
-                .AddField("No Votes", noVotes.ToString(), true)
-                .WithCurrentTimestamp()
-                .WithColor(Color.Orange);
-
-            await message.ModifyAsync(x =>
-            {
-                x.Embed = embedBuiler.Build();
-
-            });
-
-            await Program.Log(new LogMessage(LogSeverity.Info, "Thread: " + _threadHeader, "Update complete"));
+            return yesVotes;
         }
 
-        public async Task<bool> ContainsThreadMessageByMessageId(ulong messageId)
+        public uint GetNoVotes()
+        {
+            uint noVotes = 0;
+
+            foreach (var vote in _threadVotes)
+            {
+                if (!vote.Value) noVotes++;
+            }
+
+            return noVotes;
+        }
+
+        public bool ContainsThreadMessageByMessageId(ulong messageId)
         {
             return _threadDiscussion.Any(threadMessage => threadMessage.GetThreadMessageChannelId() == messageId);
         }
 
-        public async Task<ThreadMessage> GetThreadMessageByMessageId(ulong messageId)
+        public ThreadMessage GetThreadMessageByMessageId(ulong messageId)
         {
-            if (await ContainsThreadMessageByMessageId(messageId)) return _threadDiscussion.FirstOrDefault(threadMessage => threadMessage.GetThreadMessageChannelId() == messageId);
+            if (ContainsThreadMessageByMessageId(messageId)) return _threadDiscussion.FirstOrDefault(threadMessage => threadMessage.GetThreadMessageChannelId() == messageId);
             return null;
         }
 
-        public async Task DeleteThreadMessage(ulong messageId)
+        public void DeleteThreadMessage(ulong messageId)
         {
-            var threadMessage = await GetThreadMessageByMessageId(messageId);
+            var threadMessage = GetThreadMessageByMessageId(messageId);
             if (threadMessage != null && _threadDiscussion.Contains(threadMessage)) _threadDiscussion.Remove(threadMessage);
         }
     }

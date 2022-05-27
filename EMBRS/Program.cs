@@ -311,11 +311,11 @@ namespace EMBRS
         {
             try
             {
-                await Program.Log(new LogMessage(LogSeverity.Info, "Channel", "Destroyed"));
-
                 var channelId = arg.Id;
                 if (Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId))
                 {
+                    await Program.Log(new LogMessage(LogSeverity.Info, "Channel", "Destroyed"));
+
                     await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).DeleteThread(channelId);
                     await Program.Log(new LogMessage(LogSeverity.Info, "Thread", "Deleted"));
                     Database.IsDirty = true;
@@ -331,17 +331,17 @@ namespace EMBRS
         {
             try
             {
-                await Program.Log(new LogMessage(LogSeverity.Info, "Message", "Deleted"));
-
                 var messageId = arg1.Id;
                 var channelId = arg2.Id;
 
                 if (Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId))
                 {
+                    await Program.Log(new LogMessage(LogSeverity.Info, "Message", "Deleted"));
+
                     var thread = await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).GetThreadByChannelId(channelId);
-                    if (await thread.ContainsThreadMessageByMessageId(messageId))
+                    if (thread.ContainsThreadMessageByMessageId(messageId))
                     {
-                        await thread.DeleteThreadMessage(messageId);
+                        thread.DeleteThreadMessage(messageId);
                         await Program.Log(new LogMessage(LogSeverity.Info, "Thread Message", "Deleted"));
                         Database.IsDirty = true;
                     }
@@ -360,33 +360,46 @@ namespace EMBRS
                 var msg = arg as SocketUserMessage;
                 var channelId = msg.Channel.Id;
 
-                if (Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId) && !msg.Author.IsBot &&
-                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(msg.Author.Id) && Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(msg.Author.Id).GetIsRegistered())
+                if (Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId) && !msg.Author.IsBot)
                 {
-                    var userInfo = msg.Author;
-                    var channel = msg.Channel;
-
-                    var thread = await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).GetThreadByChannelId(channelId);
-                    var threadMessage = await thread.AddThreadMessage(arg.Author.Id, msg.Content);
-
-                    if (arg.Type == MessageType.Reply)
+                    if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).ContainsAccount(msg.Author.Id) && Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(msg.Author.Id).GetIsRegistered())
                     {
-                        var originalMessageId = arg.Reference.MessageId.Value;
-                        if (await thread.ContainsThreadMessageByMessageId(originalMessageId))
+                        var userInfo = msg.Author;
+                        var channel = msg.Channel;
+
+                        var thread = await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).GetThreadByChannelId(channelId);
+                        var threadMessage = thread.AddThreadMessage(arg.Author.Id, msg.Content);
+
+                        if (arg.Type == MessageType.Reply)
                         {
-                            var originalThreadMessage = await thread.GetThreadMessageByMessageId(originalMessageId);
-                            var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                            var originalUser = guild.GetUser(originalThreadMessage.GetThreadMessageAuthor());
+                            var originalMessageId = arg.Reference.MessageId.Value;
+                            if (thread.ContainsThreadMessageByMessageId(originalMessageId))
+                            {
+                                var originalThreadMessage = thread.GetThreadMessageByMessageId(originalMessageId);
+                                var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
+                                var originalUser = guild.GetUser(originalThreadMessage.GetThreadMessageAuthor());
 
-                            var embedBuiler = new EmbedBuilder()
-                                .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
-                                .WithCurrentTimestamp()
-                                .WithColor(Color.Orange)
-                                .AddField($"@{originalUser.Username}#{originalUser.Discriminator} wrote", ">>> " + originalThreadMessage.GetThreadMessageContent())
-                                .AddField(string.Empty, msg.Content);
+                                var embedBuiler = new EmbedBuilder()
+                                    .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                                    .WithCurrentTimestamp()
+                                    .WithColor(Color.Orange)
+                                    .AddField($"@{originalUser.Username}#{originalUser.Discriminator} wrote", ">>> " + originalThreadMessage.GetThreadMessageContent())
+                                    .AddField("---", msg.Content);
 
-                            var message = await channel.SendMessageAsync(null, false, embedBuiler.Build());
-                            threadMessage.SetThreadMessageChannelId(message.Id);
+                                var message = await channel.SendMessageAsync(null, false, embedBuiler.Build());
+                                threadMessage.SetThreadMessageChannelId(message.Id);
+                            }
+                            else
+                            {
+                                var embedBuiler = new EmbedBuilder()
+                                    .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
+                                    .WithDescription(msg.Content)
+                                    .WithCurrentTimestamp()
+                                    .WithColor(Color.Orange);
+
+                                var message = await channel.SendMessageAsync(null, false, embedBuiler.Build());
+                                threadMessage.SetThreadMessageChannelId(message.Id);
+                            }
                         }
                         else
                         {
@@ -399,25 +412,14 @@ namespace EMBRS
                             var message = await channel.SendMessageAsync(null, false, embedBuiler.Build());
                             threadMessage.SetThreadMessageChannelId(message.Id);
                         }
+
+                        await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).UpdateThreadPositionInChannel(thread, _discordClient);
+                        await msg.DeleteAsync();
+
+                        Database.IsDirty = true;
                     }
-                    else
-                    {
-                        var embedBuiler = new EmbedBuilder()
-                            .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
-                            .WithDescription(msg.Content)
-                            .WithCurrentTimestamp()
-                            .WithColor(Color.Orange);
-
-                        var message = await channel.SendMessageAsync(null, false, embedBuiler.Build());
-                        threadMessage.SetThreadMessageChannelId(message.Id);
-                    }
-
-                    await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).UpdateThreadPositionInChannel(thread, _discordClient);
-                    await msg.DeleteAsync();
-
-                    Database.IsDirty = true;
+                    else await msg.DeleteAsync();
                 }
-                else await msg.DeleteAsync();
             }
             catch (Exception ex)
             {
@@ -561,7 +563,8 @@ namespace EMBRS
                        .WithDescription("Add a tournament sponsor.")
                        .AddOption("sponsorname", ApplicationCommandOptionType.String, "Sponsor Name", isRequired: true)
                        .AddOption("sponsorurl", ApplicationCommandOptionType.String, "Sponsor URL", isRequired: true)
-                       .AddOption("imageurl", ApplicationCommandOptionType.String, "Sponsor Logo URL", isRequired: true);
+                       .AddOption("imageurl", ApplicationCommandOptionType.String, "Sponsor Logo URL", isRequired: true)
+                       .AddOption("description", ApplicationCommandOptionType.String, "Sponsor Description", isRequired: true);
                     await guild.CreateApplicationCommandAsync(tournamentSponsorCommand.Build());
                 }
 
@@ -597,13 +600,7 @@ namespace EMBRS
                 threadDatabase.SetCategoryId(guild.CategoryChannels.FirstOrDefault(category => category.Name.ToLower() == "governance").Id);
 
                 var updateChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "updates");
-                var embedBuilder = new EmbedBuilder()
-                    .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
-                    .WithDescription("EMBRS Forged bot is now online! Please check above GitHub check-in for latest changes!")
-                    .WithCurrentTimestamp()
-                    .WithColor(Color.Orange);
-
-                await updateChannel.SendMessageAsync(null, false, embedBuilder.Build());
+                await updateChannel.SendMessageAsync("**EMBRS Forged bot is now online! Please check above GitHub check-in for latest changes!**");
                 _ready = true;
             }
             catch (HttpException exception)

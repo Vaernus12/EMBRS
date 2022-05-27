@@ -67,12 +67,16 @@ namespace EMBRS
             var stringBuilder = new StringBuilder();
             var guild = client.GetGuild(ulong.Parse(Settings.GuildID));
 
-            foreach (var participant in _tournamentParticipants)
+            if (_tournamentParticipants.Count > 0)
             {
-                var guildUser = guild.GetUser(participant);
-                stringBuilder.Append($"{guildUser.Username}#{guildUser.Discriminator}");
-                stringBuilder.AppendLine();
+                foreach (var participant in _tournamentParticipants)
+                {
+                    var guildUser = guild.GetUser(participant);
+                    stringBuilder.Append($"{guildUser.Username}#{guildUser.Discriminator}");
+                    stringBuilder.AppendLine();
+                }
             }
+            else stringBuilder.Append("None");
 
             return stringBuilder.ToString();
         }
@@ -93,12 +97,16 @@ namespace EMBRS
             var stringBuilder = new StringBuilder();
             var guild = client.GetGuild(ulong.Parse(Settings.GuildID));
 
-            foreach (var winner in _tournamentWinners)
+            if (_tournamentWinners.Count > 0)
             {
-                var guildUser = guild.GetUser(winner);
-                stringBuilder.Append($"{guildUser.Username}#{guildUser.Discriminator}");
-                stringBuilder.AppendLine();
+                foreach (var winner in _tournamentWinners)
+                {
+                    var guildUser = guild.GetUser(winner);
+                    stringBuilder.Append($"{guildUser.Username}#{guildUser.Discriminator}");
+                    stringBuilder.AppendLine();
+                }
             }
+            else stringBuilder.Append("None");
 
             return stringBuilder.ToString();
         }
@@ -116,7 +124,7 @@ namespace EMBRS
 
         public string GetTournamentReward()
         {
-            return _tournamentReward.GetRewardString();
+            return (_tournamentReward == null) ? "None" : _tournamentReward.GetRewardString();
         }
 
         public void SetTournamentReward(string topReward, string nextReward, string normalReward)
@@ -129,9 +137,18 @@ namespace EMBRS
             return _tournamentSponsors;
         }
 
-        public void AddTournamentSponsor(TournamentSponsor sponsor)
+        public void AddTournamentSponsor(string sponsor, string url, string image, string description)
         {
-            _tournamentSponsors.Add(sponsor);
+            if (_tournamentSponsors.Any(x => x.GetSponsorName() == sponsor))
+            {
+                var tournamentSponsor = _tournamentSponsors.FirstOrDefault(x => x.GetSponsorName() == sponsor);
+                tournamentSponsor.UpdateSponsor(sponsor, url, image, description);
+            }
+            else
+            {
+                var tournamentSponsor = new TournamentSponsor(sponsor, url, image, description);
+                _tournamentSponsors.Add(tournamentSponsor);
+            }
         }
 
         public async Task StartTournament(DiscordSocketClient client)
@@ -140,10 +157,10 @@ namespace EMBRS
             var tournamentChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "tournament");
             var embedBuilder = new EmbedBuilder()
                 .WithAuthor(client.CurrentUser.ToString(), client.CurrentUser.GetAvatarUrl() ?? client.CurrentUser.GetDefaultAvatarUrl())
-                .WithDescription("The Emberlight tournament has started!")
+                .WithDescription("The Emberlight tournament has started for week " + _tournamentWeek + "!")
                 .WithCurrentTimestamp()
                 .WithColor(Color.Orange)
-                .AddField("Tournament Achievement", _tournamentAchievement);
+                .AddField("Achievement", _tournamentAchievement);
 
             await tournamentChannel.SendMessageAsync(null, false, embedBuilder.Build());
         }

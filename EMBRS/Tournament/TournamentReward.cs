@@ -36,11 +36,19 @@ namespace EMBRS
         public string GetRewardString()
         {
             var stringBuilder = new StringBuilder();
-            stringBuilder.Append(_topReward);
-            stringBuilder.AppendLine();
-            stringBuilder.Append(_nextReward);
-            stringBuilder.AppendLine();
-            stringBuilder.Append(_normalReward);
+
+            if (_topReward == string.Empty && _nextReward == string.Empty && _normalReward == string.Empty)
+            {
+                stringBuilder.Append("None");
+            }
+            else
+            {
+                stringBuilder.Append(_topReward);
+                stringBuilder.AppendLine();
+                stringBuilder.Append(_nextReward);
+                stringBuilder.AppendLine();
+                stringBuilder.Append(_normalReward);
+            }
             return stringBuilder.ToString();
         }
     }

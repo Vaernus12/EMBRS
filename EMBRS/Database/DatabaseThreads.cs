@@ -61,7 +61,6 @@ namespace EMBRS
                 .WithColor(Color.Orange);
 
             var message = await channel.SendMessageAsync(null, false, embedBuiler.Build());
-            linkedThread.SetThreadEmbedId(message.Id);
         }
 
         public async Task UpdateThreadPositionInChannel(Thread thread, DiscordSocketClient client = null)

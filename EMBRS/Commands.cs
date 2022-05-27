@@ -7,7 +7,6 @@ using RippleDotNet.Json.Converters;
 using RippleDotNet.Model;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -288,6 +287,7 @@ namespace EMBRS_Discord
                     .AddField("/swap <from> <to> <amount>", swapStringBuilder.ToString())
                     .AddField("/tip <recipient> <amount>", tipStringBuilder.ToString())
                     .AddField("/tournament", "Sign-up for the current week's Emberlight tournament (#bot-commands)")
+                    .AddField("/tournamentstatus", "Show the current week's tournament information (#bot-commands)")
                     .AddField("/unregister", "Unregister from the EMBRS bot (#bot-commands)")
                     .AddField("/vote", "Vote on a governance topic within the Discord channel (any governance topic channel)");
 
@@ -310,13 +310,7 @@ namespace EMBRS_Discord
                 var userInfo = command.User as SocketGuildUser;
                 var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
                 var updateChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "updates");
-                var embedBuilder = new EmbedBuilder()
-                    .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
-                    .WithDescription("EMBRS Forged bot is shutting down for maintenance!")
-                    .WithCurrentTimestamp()
-                    .WithColor(Color.Orange);
-
-                await updateChannel.SendMessageAsync(null, false, embedBuilder.Build());
+                await updateChannel.SendMessageAsync("**EMBRS Forged bot is shutting down for maintenance!**");
                 await command.FollowupAsync("EMBRS maintenance ready", ephemeral: true);
                 await Program.Shutdown();
 
@@ -884,8 +878,9 @@ namespace EMBRS_Discord
                 var sponsorName = (string)command.Data.Options.SingleOrDefault(r => r.Name == "sponsorname").Value;
                 var sponsorUrl = (string)command.Data.Options.SingleOrDefault(r => r.Name == "sponsorurl").Value;
                 var imageUrl = (string)command.Data.Options.SingleOrDefault(r => r.Name == "imageurl").Value;
-                Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).AddTournamentSponsor(new TournamentSponsor(sponsorName, sponsorUrl, imageUrl));
-                await command.FollowupAsync($"Current week's tournament achievement is set!", ephemeral: true);
+                var description = (string)command.Data.Options.SingleOrDefault(r => r.Name == "description").Value;
+                Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).AddTournamentSponsor(sponsorName, sponsorUrl, imageUrl, description);
+                await command.FollowupAsync($"Current week's tournament sponsor is added!", ephemeral: true);
             }
             catch (Exception ex)
             {
@@ -929,22 +924,24 @@ namespace EMBRS_Discord
 
                 var embedBuiler = new EmbedBuilder()
                     .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
-                    .WithDescription("Emberlight tournament week " + Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentWeek())
+                    .WithDescription("EMBERLIGHT TOURNAMENT WEEK " + Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentWeek())
                     .WithColor(Color.Orange)
                     .AddField("Tournament Status", status)
                     .AddField("Achievement", Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentAchievement())
                     .AddField("Participants", Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentParticipants(_discordClient))
                     .AddField("Winners", Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentWinners(_discordClient))
-                    .AddField("Reward", Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentReward());
+                    .AddField("Reward", Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentReward())
+                    .AddField("Sponsors", (Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentSponsors().Count == 0) ? "None" : "See Below");
 
                 await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
 
                 foreach(var sponsor in Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).GetTournamentSponsors())
                 {
                     embedBuiler = new EmbedBuilder()
-                        .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
-                        .WithTitle(sponsor.GetSponsorName())
+                        .WithAuthor(sponsor.GetSponsorName(), sponsor.GetSponsorImageUrl())
+                        .WithTitle("Website")
                         .WithThumbnailUrl(sponsor.GetSponsorImageUrl())
+                        .WithDescription(sponsor.GetDescription())
                         .WithUrl(sponsor.GetSponsorUrl())
                         .WithColor(Color.Orange);
                     await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
@@ -999,7 +996,7 @@ namespace EMBRS_Discord
                     if (Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId))
                     {
                         var thread = await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).GetThreadByChannelId(channelId);
-                        await thread.SetVote(userInfo.Id, resultBool);
+                        thread.SetVote(userInfo.Id, resultBool);
                         await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).UpdateThreadPositionInChannel(thread, _discordClient);
                         await command.FollowupAsync("Your vote has been applied!", ephemeral: true);
 
@@ -1007,7 +1004,9 @@ namespace EMBRS_Discord
                             .WithAuthor(userInfo.ToString(), userInfo.GetAvatarUrl() ?? userInfo.GetDefaultAvatarUrl())
                             .WithDescription("Voted: " + result.ToLower())
                             .WithCurrentTimestamp()
-                            .WithColor(Color.Orange);
+                            .WithColor(Color.Orange)
+                            .AddField("Yes Votes", thread.GetYesVotes().ToString(), true)
+                            .AddField("No Votes", thread.GetNoVotes().ToString(), true);
 
                         var message = await command.Channel.SendMessageAsync(null, false, embedBuiler.Build());
 
