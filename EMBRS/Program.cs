@@ -6,7 +6,6 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using XUMM.NET.SDK.EMBRS;
@@ -23,7 +22,7 @@ namespace EMBRS
         private readonly XummPayloadClient _payloadClient;
         private readonly XummHttpClient _httpClient;
 
-        private readonly bool _updateCommands = true;
+        private readonly bool _updateCommands = false;
 
         private static bool _running = false;
         private static bool _ready = false;
@@ -226,23 +225,6 @@ namespace EMBRS
                                 break;
                             }
                     }
-
-                    // THREAD NOTIFICATION
-                    {
-                        var threads = Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).GetAllThreads();
-                        var feedbackChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "feedback");
-                        var embedBuilder = new EmbedBuilder()
-                            .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
-                            .WithDescription("Come join the governance discussion and voting! Today's topics:")
-                            .WithCurrentTimestamp()
-                            .WithColor(Color.Orange);
-                        for(int i = 0; i < threads.Count; i++)
-                        {
-                            embedBuilder.AddField(threads[i].GetThreadHeader(), "#" + threads[i].GetThreadChannelName());
-                        }
-
-                        await feedbackChannel.SendMessageAsync(null, false, embedBuilder.Build());
-                    }
                 }
                 
                 // RANDOM MESSAGING
@@ -358,6 +340,7 @@ namespace EMBRS
             try
             {
                 var msg = arg as SocketUserMessage;
+                if (msg == null) return;
                 var channelId = msg.Channel.Id;
 
                 if (Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).ContainsThreadByChannelId(channelId) && !msg.Author.IsBot)

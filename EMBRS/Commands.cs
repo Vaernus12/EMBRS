@@ -41,8 +41,6 @@ namespace EMBRS_Discord
         {
             try
             {
-                await command.DeferAsync(ephemeral: true);
-
                 switch (command.Data.Name)
                 {
                     case "addtopic":
@@ -201,6 +199,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync();
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfRegistered(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
@@ -211,7 +210,7 @@ namespace EMBRS_Discord
                 var content = (string)command.Data.Options.SingleOrDefault(r => r.Name == "content").Value;
 
                 var thread = await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).CreateThread(userInfo, header, content, _discordClient);
-                await command.FollowupAsync("New thread created in channel #" + thread.GetThreadChannelName() + " under Governance category!", ephemeral: true);
+                await command.FollowupAsync("New thread created in channel #" + thread.GetThreadChannelName() + " under Governance category!");
 
                 Database.IsDirty = true;
             }
@@ -225,6 +224,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfRegistered(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
@@ -247,6 +247,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
 
@@ -303,6 +304,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfAdmin(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
@@ -325,6 +327,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
 
@@ -353,6 +356,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync();
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfAdmin(command)) return;
                 if (!await CheckIfCorrectChannel(command, "verify")) return;
@@ -375,6 +379,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
 
@@ -447,6 +452,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenSwapOrTip(command)) return;
                 if (!await CheckIfRegistered(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
@@ -678,6 +684,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenSwapOrTip(command)) return;
                 if (!await CheckIfRegistered(command)) return;
 
@@ -697,7 +704,8 @@ namespace EMBRS_Discord
                         Database.IsDirty = true;
                     }
                     else
-                    { 
+                    {
+                        await command.FollowupAsync("Beginning tip", ephemeral: true);
                         var destination = Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).GetXRPAddress();
                         var currencyAmount = new Currency { CurrencyCode = Settings.CurrencyCode, Issuer = Settings.IssuerAddress, Value = amount.ToString() };
 
@@ -804,6 +812,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfRegistered(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
@@ -814,6 +823,7 @@ namespace EMBRS_Discord
                 {
                     await Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).AddTournamentParticipant(_discordClient, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id));
                     await command.FollowupAsync("You are signed-up for this week's tournament! Check #tournament for more details.", ephemeral: true);
+                    await command.FollowupAsync("A new participant has joined the tournament...");
                 }
                 else
                 {
@@ -830,6 +840,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfAdmin(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
@@ -849,6 +860,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfAdmin(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
@@ -858,7 +870,7 @@ namespace EMBRS_Discord
                 var nextreward = (string)command.Data.Options.SingleOrDefault(r => r.Name == "nextreward").Value;
                 var normalreward = (string)command.Data.Options.SingleOrDefault(r => r.Name == "normalreward").Value;
                 Database.GetDatabase<DatabaseTournament>(DatabaseType.Tournament).SetTournamentReward(topReward, nextreward, normalreward);
-                await command.FollowupAsync($"Current week's tournament achievement is set!", ephemeral: true);
+                await command.FollowupAsync($"Current week's tournament rewards are set!", ephemeral: true);
             }
             catch (Exception ex)
             {
@@ -870,6 +882,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfAdmin(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
@@ -892,6 +905,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
 
@@ -957,6 +971,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfRegistered(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
@@ -983,6 +998,7 @@ namespace EMBRS_Discord
         {
             try
             {
+                await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfRegistered(command)) return;
 
