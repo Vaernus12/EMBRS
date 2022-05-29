@@ -20,6 +20,8 @@ namespace EMBRS
         [JsonProperty] private TournamentReward _tournamentReward;
         [JsonProperty] private List<TournamentSponsor> _tournamentSponsors;
 
+        private readonly bool _sponsorRewards = true;
+
         public DatabaseTournament()
         {
             Type = DatabaseType.Tournament;
@@ -187,15 +189,35 @@ namespace EMBRS
                     stringBuilder.Append($"@{user.Username}#{user.Discriminator}");
                     if (i == 0)
                     {
-                        stringBuilder.Append($" - 1100 EMBRS and early access slot to Emberlight: Rekindled!");
-                        await XRPL.SendRewardAsync(client, null, null, user, "1100");
+                        if (_sponsorRewards)
+                        {
+                            stringBuilder.Append($" - 1100 $EMBRS, 3000 $STX, and early access slot to Emberlight: Rekindled!");
+                            await XRPL.SendRewardAsync(client, null, null, user, "1100", "EMBRS");
+                            await XRPL.SendRewardAsync(client, null, null, user, "3000", "STX");
+                        }
+                        else
+                        {
+                            stringBuilder.Append($" - 1100 $EMBRS and early access slot to Emberlight: Rekindled!");
+                            await XRPL.SendRewardAsync(client, null, null, user, "1100", "EMBRS");
+                        }
+
                         Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ModEMBRSEarned(1100);
                         await user.AddRoleAsync(earlyAccessRole);
                     }
                     else
                     {
-                        stringBuilder.Append($" - 600 EMBRS and early access slot to Emberlight: Rekindled!");
-                        await XRPL.SendRewardAsync(client, null, null, user, "600");
+                        if (_sponsorRewards)
+                        {
+                            stringBuilder.Append($" - 600 $EMBRS, 1000 $STX, and early access slot to Emberlight: Rekindled!");
+                            await XRPL.SendRewardAsync(client, null, null, user, "600", "EMBRS");
+                            await XRPL.SendRewardAsync(client, null, null, user, "1000", "STX");
+                        }
+                        else
+                        {
+                            stringBuilder.Append($" - 600 $EMBRS and early access slot to Emberlight: Rekindled!");
+                            await XRPL.SendRewardAsync(client, null, null, user, "600", "EMBRS");
+                        }
+
                         Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ModEMBRSEarned(600);
                         await user.AddRoleAsync(earlyAccessRole);
                     }
@@ -208,8 +230,8 @@ namespace EMBRS
                     {
                         var user = guild.GetUser(usersList[i]) as SocketGuildUser;
                         stringBuilder.Append($"@{user.Username}#{user.Discriminator}");
-                        stringBuilder.Append($" - 100 EMBRS!");
-                        await XRPL.SendRewardAsync(client, null, null, user, "100");
+                        stringBuilder.Append($" - 100 $EMBRS!");
+                        await XRPL.SendRewardAsync(client, null, null, user, "100", "EMBRS");
                         Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ModEMBRSEarned(100);
                         stringBuilder.AppendLine();
                     }

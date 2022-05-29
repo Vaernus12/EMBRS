@@ -69,7 +69,7 @@ namespace EMBRS
             _randomMessages.Add("EMBRS Forged is an XRP community effort, and we recently discussed the concept of governance in #embrs. All EMBRS holders will have a say in my progression via governance topics and voting!");
             _randomMessages.Add("We recently launched the EMBRS Forged platform website breaking down our plans as well as the general roadmap! You can check it out at: <https://emberlight.quarteroniongames.com/platform/>");
             _randomMessages.Add("What are EMBRS and why do I want them, oh wonderful bot? Glad you asked, hypothetical person. A breakdown of the EMBRS token can be found at: <https://emberlight.quarteroniongames.com/embers/>");
-            _randomMessages.Add("The EMBRS pool, powered by the awesome StaykX platform, is going live soon! Have a bunch of EMBRS sitting around from all your tournament winnings, and want to earn from them? Please make sure you're all setup if you want to stayk your EMBRS by visiting: <https://staykx.com/>");
+            _randomMessages.Add("The EMBRS pool, powered by the awesome StaykX platform, is live! Have a bunch of EMBRS sitting around from all your tournament winnings, and want to earn from them? Please make sure you're all setup if you want to stayk your EMBRS by visiting: <https://staykx.com/>");
             _randomMessages.Add("We still don't know how the duel process works (anchor beats credit card????), but we have a really fun bot called Epic RPG in our #gameroom channel. Looking to pass time between the faucet and weekly tournament? Come join the devs and community in there!");
             _randomMessages.Add("Want an early access slot to Emberlight: Rekindled? Come join the tournament and we have providing a handful of slots each week along with a handful of other awesome prizes!");
             _randomMessages.Add("That !rank thing we all see in #bot-commands through MEE6? This currently unlocks roles within our server. Higher roles provide more access, with the coveted Elite role giving you an early access slot in Emberlight: Rekindled!");
@@ -131,9 +131,8 @@ namespace EMBRS
                     var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
 
                     // FAUCET
-                    foreach (var account in  Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccounts())
                     {
-                        account.SetReceivedFaucetReward(false);
+                        foreach (var account in Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccounts()) account.SetReceivedFaucetReward(false);
                         var embrsChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "embrs");
                         var embedBuilder = new EmbedBuilder()
                             .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
@@ -142,7 +141,6 @@ namespace EMBRS
                             .WithColor(Color.Orange);
 
                         await embrsChannel.SendMessageAsync(null, false, embedBuilder.Build());
-
                         Database.IsDirty = true;
                     }
 

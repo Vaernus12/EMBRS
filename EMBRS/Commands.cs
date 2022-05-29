@@ -24,8 +24,6 @@ namespace EMBRS_Discord
         private readonly XummPayloadClient _payloadClient;
         private readonly XummHttpClient _httpClient;
 
-        private readonly bool _sponsorRewards = false;
-
         public Commands(DiscordSocketClient discordClient, XummWebSocket webSocketClient, XummMiscAppStorageClient appStorageClient,
                         XummMiscClient miscClient, XummPayloadClient payloadClient, XummHttpClient httpClient)
         {
@@ -231,7 +229,7 @@ namespace EMBRS_Discord
                 if (await CheckIfReceivedFaucetReward(command)) return;
 
                 var userInfo = command.User as SocketGuildUser;
-                await XRPL.SendRewardAsync(null, command, null, userInfo, Settings.FaucetTokenAmt, false, true);
+                await XRPL.SendRewardAsync(null, command, null, userInfo, Settings.FaucetTokenAmt, "EMBRS", false, true);
                 Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).ModEMBRSEarned(float.Parse(Settings.FaucetTokenAmt));
                 Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).SetReceivedFaucetReward(true);
                 Database.IsDirty = true;
@@ -699,7 +697,7 @@ namespace EMBRS_Discord
                     {
                         await command.FollowupAsync("Beginning server tip", ephemeral: true);
                         tipAmount = Math.Min(amount, float.Parse(Settings.MaxTipTokenAmt)).ToString();
-                        await XRPL.SendRewardAsync(null, command, userInfo, user, tipAmount, true, false);
+                        await XRPL.SendRewardAsync(null, command, userInfo, user, tipAmount, "EMBRS", true, false);
                         Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ModEMBRSEarned(float.Parse(tipAmount));
                         Database.IsDirty = true;
                     }

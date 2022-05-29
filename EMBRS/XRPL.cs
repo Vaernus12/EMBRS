@@ -17,7 +17,7 @@ namespace EMBRS
 {
     public static class XRPL
     {
-        public static async Task SendRewardAsync(DiscordSocketClient discordClient, SocketSlashCommand command, SocketUser sourceUser, SocketUser destinationUser, string amount, 
+        public static async Task SendRewardAsync(DiscordSocketClient discordClient, SocketSlashCommand command, SocketUser sourceUser, SocketUser destinationUser, string amount, string type,
                                                  bool tip = false, bool faucet = false)
         {
             try
@@ -38,7 +38,7 @@ namespace EMBRS
 
                 int feeInDrops = Convert.ToInt32(Math.Floor(f.Drops.OpenLedgerFee * Settings.FeeMultiplier));
 
-                var response = await XRPL.SendXRPPaymentAsync(client, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).GetXRPAddress(), sequence, feeInDrops, amount, Settings.TransferFee);
+                var response = await XRPL.SendXRPPaymentAsync(client, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).GetXRPAddress(), sequence, feeInDrops, amount, type, Settings.TransferFee);
 
                 //Transaction Node isn't Current. Wait for Network
                 if (response.EngineResult == "noCurrent" || response.EngineResult == "noNetwork")
@@ -48,7 +48,7 @@ namespace EMBRS
                     {
                         //Throttle for node to catch up
                         System.Threading.Thread.Sleep(Settings.TxnThrottle * 3000);
-                        response = await XRPL.SendXRPPaymentAsync(client, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).GetXRPAddress(), sequence, feeInDrops, amount, Settings.TransferFee);
+                        response = await XRPL.SendXRPPaymentAsync(client, Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).GetXRPAddress(), sequence, feeInDrops, amount, type, Settings.TransferFee);
                         retry++;
 
                         if ((response.EngineResult == "noCurrent" || response.EngineResult == "noNetwork") && retry == 3)
@@ -91,20 +91,20 @@ namespace EMBRS
                     else
                     {
                         var userInfo = command.User;
-                        if (command != null) await command.FollowupAsync($"Tournament reward of " + amount + " EMBRS complete! Congratulations!", ephemeral: true);
+                        if (command != null) await command.FollowupAsync($"Tournament reward of " + amount + " " + type + " complete! Congratulations!", ephemeral: true);
                     }
                 }
                 else if (response.EngineResult == "tecPATH_DRY" || response.EngineResult == "tecDST_TAG_NEEDED")
                 {
                     //Trustline was removed or Destination Tag needed for address
-                    if (command != null) await command.FollowupAsync("EMBRS trustline is not set!", ephemeral: true);
+                    if (command != null) await command.FollowupAsync(type + " trustline is not set!", ephemeral: true);
                     if (tip) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).SetLastTipTime(Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).GetLastTipTime().AddMinutes(-1));
                     sequence++;
                 }
                 else
                 {
                     //Failed
-                    if (command != null) await command.FollowupAsync("EMBRS transaction failed!", ephemeral: true);
+                    if (command != null) await command.FollowupAsync("Transaction failed!", ephemeral: true);
                     if (tip) Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).SetLastTipTime(Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(destinationUser.Id).GetLastTipTime().AddMinutes(-1));
                     sequence++;
                 }
@@ -118,7 +118,7 @@ namespace EMBRS
             }
         }
 
-        public static async Task<Submit> SendXRPPaymentAsync(IRippleClient client, string destinationAddress, uint sequence, int feeInDrops, string amount, decimal transferFee = 0)
+        public static async Task<Submit> SendXRPPaymentAsync(IRippleClient client, string destinationAddress, uint sequence, int feeInDrops, string amount, string type, decimal transferFee = 0)
         {
             try
             {
@@ -126,13 +126,13 @@ namespace EMBRS
                 {
                     Account = Settings.RewardAddress,
                     Destination = destinationAddress,
-                    Amount = new Currency { CurrencyCode = Settings.CurrencyCode, Issuer = Settings.IssuerAddress, Value = amount },
+                    Amount = new Currency { CurrencyCode = (type == "EMBRS") ? Settings.CurrencyCode : Settings.STXCurrencyCode, Issuer = (type == "EMBRS") ? Settings.IssuerAddress : Settings.STXIssuerAddress, Value = amount },
                     Sequence = sequence,
                     Fee = new Currency { CurrencyCode = "XRP", ValueAsNumber = feeInDrops }
                 };
                 if (transferFee > 0)
                 {
-                    paymentTransaction.SendMax = new Currency { CurrencyCode = Settings.CurrencyCode, Issuer = Settings.IssuerAddress, Value = (amount + (Convert.ToDecimal(amount) * (transferFee / 100))).ToString() };
+                    paymentTransaction.SendMax = new Currency { CurrencyCode = (type == "EMBRS") ? Settings.CurrencyCode : Settings.STXCurrencyCode, Issuer = (type == "EMBRS") ? Settings.IssuerAddress : Settings.STXIssuerAddress, Value = (amount + (Convert.ToDecimal(amount) * (transferFee / 100))).ToString() };
                 }
 
                 TxSigner signer = TxSigner.FromSecret(Settings.RewardSecret);  //secret is not sent to server, offline signing only

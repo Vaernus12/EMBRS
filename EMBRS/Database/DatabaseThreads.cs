@@ -156,13 +156,13 @@ namespace EMBRS
                         var authorUser = guild.GetUser(author);
                         var embrsChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "embrs");
 
-                        await XRPL.SendRewardAsync(client, null, null, authorUser, "100");
+                        await XRPL.SendRewardAsync(client, null, null, authorUser, "100", "EMBRS");
                         Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(authorUser.Id).ModEMBRSEarned(100);
 
                         for (int i = 0; i < rewardedUsers.Count; i++)
                         {
                             var user = guild.GetUser(rewardedUsers[i]);
-                            await XRPL.SendRewardAsync(client, null, null, user, "10");
+                            await XRPL.SendRewardAsync(client, null, null, user, "10", "EMBRS");
                             Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(user.Id).ModEMBRSEarned(10);
                         }
 
