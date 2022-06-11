@@ -70,7 +70,7 @@ namespace EMBRS
             _randomMessages.Add("We recently launched the EMBRS Forged platform website breaking down our plans as well as the general roadmap! You can check it out at: <https://emberlight.quarteroniongames.com/platform/>");
             _randomMessages.Add("What are EMBRS and why do I want them, oh wonderful bot? Glad you asked, hypothetical person. A breakdown of the EMBRS token can be found at: <https://emberlight.quarteroniongames.com/embers/>");
             _randomMessages.Add("The EMBRS pool, powered by the awesome StaykX platform, is live! Have a bunch of EMBRS sitting around from all your tournament winnings, and want to earn from them? Please make sure you're all setup if you want to stayk your EMBRS by visiting: <https://staykx.com/>");
-            _randomMessages.Add("We still don't know how the duel process works (anchor beats credit card????), but we have a really fun bot called Epic RPG in our #gameroom channel. Looking to pass time between the faucet and weekly tournament? Come join the devs and community in there!");
+            _randomMessages.Add("We still don't know how the duel process works (anchor beats credit card????), but we have a really fun bot called Epic RPG in our #rpg channel. Looking to pass time between the faucet and weekly tournament? Come join the devs and community in there!");
             _randomMessages.Add("Want an early access slot to Emberlight: Rekindled? Come join the tournament and we have providing a handful of slots each week along with a handful of other awesome prizes!");
             _randomMessages.Add("That !rank thing we all see in #bot-commands through MEE6? This currently unlocks roles within our server. Higher roles provide more access, with the coveted Elite role giving you an early access slot in Emberlight: Rekindled!");
             _randomMessages.Add("Posted an awesome tweet about me or everything else we're doing? Let us know here and you just might earn yourself some EMBRS in the process!");
@@ -132,7 +132,12 @@ namespace EMBRS
 
                     // FAUCET
                     {
-                        foreach (var account in Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccounts()) account.SetReceivedFaucetReward(false);
+                        foreach (var account in Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccounts())
+                        {
+                            account.SetReceivedFaucetReward(false);
+                            account.SetChangedXRPAddress(false);
+                        }
+
                         var embrsChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "embrs");
                         var embedBuilder = new EmbedBuilder()
                             .WithAuthor(_discordClient.CurrentUser.ToString(), _discordClient.CurrentUser.GetAvatarUrl() ?? _discordClient.CurrentUser.GetDefaultAvatarUrl())
@@ -244,7 +249,7 @@ namespace EMBRS
                 }
 
                 // THREAD UPDATES AND DELETION
-                await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).TestAllThreads(_discordClient);
+                ///await Database.GetDatabase<DatabaseThreads>(DatabaseType.Threads).TestAllThreads(_discordClient);
             }
             catch (Exception ex)
             {
@@ -283,6 +288,20 @@ namespace EMBRS
 
             Console.WriteLine($"{DateTime.Now,-19} [{message.Severity,8}] {message.Source}: {message.Message} {message.Exception}");
             Console.ResetColor();
+
+            try
+            {
+                if (_running && _ready)
+                {
+                    var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
+                    var logsChannel = guild.TextChannels.FirstOrDefault(x => x.Name == "logs");
+                    logsChannel.SendMessageAsync($"{DateTime.Now,-19} [{message.Severity,8}] {message.Source}: {message.Message} {message.Exception}");
+                }
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine("Failed to send to #logs channel");
+            }
 
             return Task.CompletedTask;
         }
@@ -558,14 +577,14 @@ namespace EMBRS
                     await guild.CreateApplicationCommandAsync(tournamentStatusCommand.Build());
                 }
 
-                if (!_updateCommands && commands.Any(r => r.Name == "unregister")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Unregister"));
-                else
-                {
-                    var unregisterCommand = new SlashCommandBuilder()
-                        .WithName("unregister")
-                        .WithDescription("Unregister from EMBRS bot.");
-                    await guild.CreateApplicationCommandAsync(unregisterCommand.Build());
-                }
+                //if (!_updateCommands && commands.Any(r => r.Name == "unregister")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Unregister"));
+                //else
+                //{
+                //    var unregisterCommand = new SlashCommandBuilder()
+                //        .WithName("unregister")
+                //        .WithDescription("Unregister from EMBRS bot.");
+                //    await guild.CreateApplicationCommandAsync(unregisterCommand.Build());
+                //}
 
                 if (!_updateCommands && commands.Any(r => r.Name == "vote")) await Log(new LogMessage(LogSeverity.Info, "Command Loaded", "Vote"));
                 else

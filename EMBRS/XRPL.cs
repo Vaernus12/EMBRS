@@ -11,12 +11,15 @@ using RippleDotNet.Model.Transaction.TransactionTypes;
 using RippleDotNet.Requests.Account;
 using RippleDotNet.Requests.Transaction;
 using System;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace EMBRS
 {
     public static class XRPL
     {
+        private static Regex regex = new Regex("^[a-zA-Z][a-zA-Z1-9]*$");
+
         public static async Task SendRewardAsync(DiscordSocketClient discordClient, SocketSlashCommand command, SocketUser sourceUser, SocketUser destinationUser, string amount, string type,
                                                  bool tip = false, bool faucet = false)
         {
@@ -80,18 +83,27 @@ namespace EMBRS
 
                     if (tip)
                     {
-                        var userInfo = command.User;
-                        if (command != null) await command.FollowupAsync($"**{sourceUser.Username}#{sourceUser.Discriminator} sent {destinationUser.Username}#{destinationUser.Discriminator} a tip of {amount} EMBRS!**");
+                        if (command != null)
+                        {
+                            var userInfo = command.User;
+                            await command.FollowupAsync($"**{sourceUser.Username}#{sourceUser.Discriminator} sent {destinationUser.Username}#{destinationUser.Discriminator} a tip of {amount} EMBRS!**");
+                        }
                     }
                     else if (faucet)
                     {
-                        var userInfo = command.User;
-                        if (command != null) await command.FollowupAsync($"Faucet payout of " + amount + " EMBRS complete!", ephemeral: true);
+                        if (command != null)
+                        {
+                            var userInfo = command.User;
+                            await command.FollowupAsync($"Faucet payout of " + amount + " EMBRS complete!", ephemeral: true);
+                        }
                     }
                     else
                     {
-                        var userInfo = command.User;
-                        if (command != null) await command.FollowupAsync($"Tournament reward of " + amount + " " + type + " complete! Congratulations!", ephemeral: true);
+                        if (command != null)
+                        {
+                            var userInfo = command.User;
+                            await command.FollowupAsync($"Tournament reward of " + amount + " " + type + " complete! Congratulations!", ephemeral: true);
+                        }
                     }
                 }
                 else if (response.EngineResult == "tecPATH_DRY" || response.EngineResult == "tecDST_TAG_NEEDED")
@@ -400,6 +412,20 @@ namespace EMBRS
 
             returnObj.Marker = marker;
             return returnObj;
+        }
+
+        public static async Task<bool> ReturnValidXRPAddress(string account)
+        {
+            try
+            {
+                if (account.StartsWith('r') && !account.Contains('O') && !account.Contains('I') && !account.Contains('l') && account.Length >= 25 && account.Length <= 35 && regex.IsMatch(account)) return true;
+                else return false;
+            }
+            catch (Exception ex)
+            {
+                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+                return false;
+            }
         }
 
         public struct TrustLineReturnObj

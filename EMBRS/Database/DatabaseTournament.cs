@@ -85,7 +85,7 @@ namespace EMBRS
 
         public async Task AddTournamentParticipant(DiscordSocketClient client, Account participant)
         {
-            _tournamentParticipants.Add(participant.GetId());
+            if(!_tournamentParticipants.Contains(participant.GetId())) _tournamentParticipants.Add(participant.GetId());
             participant.SetInTournament(true);
             var guild = client.GetGuild(ulong.Parse(Settings.GuildID));
             var guildUser = guild.GetUser(participant.GetId());
@@ -115,7 +115,7 @@ namespace EMBRS
 
         public async Task AddTournamentWinner(DiscordSocketClient client, Account winner)
         {
-            _tournamentWinners.Add(winner.GetId());
+            if (!_tournamentWinners.Contains(winner.GetId())) _tournamentWinners.Add(winner.GetId());
             winner.SetTournamentWinner(true);
             var guild = client.GetGuild(ulong.Parse(Settings.GuildID));
             var guildUser = guild.GetUser(winner.GetId());

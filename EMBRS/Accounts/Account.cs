@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 
 namespace EMBRS
 {
@@ -15,6 +16,9 @@ namespace EMBRS
         [JsonProperty("LastCommandTime")] private DateTime _lastCommandTime;
         [JsonProperty("LastTipTime")] private DateTime _lastTipTime;
         [JsonProperty("ReceivedFaucetReward")] private bool _receivedFaucetReward;
+        [JsonProperty("ReceivedFaucetRewardAtAddress")] private string _receivedFaucetRewardAtAddress;
+        [JsonProperty("ChangedXRPAddress")] private bool _changedXRPAddress;
+        [JsonProperty("PreviousXRPAddresses")] private List<string> _previousXRPAddresses;
 
         public Account(ulong id, string xrpAddress)
         {
@@ -27,6 +31,10 @@ namespace EMBRS
             _lastCommandTime = DateTime.UtcNow;
             _lastTipTime = DateTime.MinValue;
             _receivedFaucetReward = false;
+            _receivedFaucetRewardAtAddress = string.Empty;
+            _changedXRPAddress = false;
+            _previousXRPAddresses = new List<string>();
+            _previousXRPAddresses.Add(xrpAddress);
         }
 
         public ulong GetId()
@@ -42,6 +50,13 @@ namespace EMBRS
         public void SetXRPAddress(string xrpAddress)
         {
             _xrpAddress = xrpAddress;
+            if (_receivedFaucetReward) _changedXRPAddress = true;
+            if(!_previousXRPAddresses.Contains(xrpAddress)) _previousXRPAddresses.Add(xrpAddress);
+        }
+
+        public List<string> GetPreviousXRPAddresses()
+        {
+            return _previousXRPAddresses;
         }
 
         public bool GetIsRegistered()
@@ -92,6 +107,23 @@ namespace EMBRS
         public void SetReceivedFaucetReward(bool faucetReward)
         {
             _receivedFaucetReward = faucetReward;
+            if (faucetReward) _receivedFaucetRewardAtAddress = _xrpAddress;
+            else _receivedFaucetRewardAtAddress = string.Empty;
+        }
+
+        public string GetReceivedFaucetRewardAtAddress()
+        {
+            return _receivedFaucetRewardAtAddress;
+        }
+
+        public bool ChangedXRPAddress()
+        {
+            return _changedXRPAddress;
+        }
+
+        public void SetChangedXRPAddress(bool changed)
+        {
+            _changedXRPAddress = changed;
         }
 
         public void ResetTournament()

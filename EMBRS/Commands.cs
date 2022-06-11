@@ -39,11 +39,13 @@ namespace EMBRS_Discord
         {
             try
             {
+                var userInfo = command.User as SocketGuildUser;
+
                 switch (command.Data.Name)
                 {
                     case "addtopic":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "addtopic"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "addtopic"));
                             var addTopicTask = Task.Run(async () =>
                             {
                                 await HandleAddTopicCommand(command);
@@ -52,7 +54,7 @@ namespace EMBRS_Discord
                         }
                     case "faucet":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "faucet"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "faucet"));
                             var faucetTask = Task.Run(async () =>
                             {
                                 await HandleFaucetCommand(command);
@@ -61,7 +63,7 @@ namespace EMBRS_Discord
                         }
                     case "help":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "help"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "help"));
                             var helpTask = Task.Run(async () =>
                             {
                                 await HandleHelpCommand(command);
@@ -70,7 +72,7 @@ namespace EMBRS_Discord
                         }
                     case "maintenance":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "maintenance"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "maintenance"));
                             var maintenanceTask = Task.Run(async () =>
                             {
                                 await HandleMaintenanceCommand(command);
@@ -79,7 +81,7 @@ namespace EMBRS_Discord
                         }
                     case "register":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "register"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "register"));
                             var registerTask = Task.Run(async () =>
                             {
                                 await HandleRegisterCommand(command);
@@ -88,7 +90,7 @@ namespace EMBRS_Discord
                         }
                     case "setwinner":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "setwinner"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "setwinner"));
                             var setwinnerTask = Task.Run(async () =>
                             {
                                 await HandleSetWinnerCommand(command);
@@ -97,7 +99,7 @@ namespace EMBRS_Discord
                         }
                     case "status":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "status"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "status"));
                             var statusTask = Task.Run(async () =>
                             {
                                 await HandleStatusCommand(command);
@@ -106,7 +108,7 @@ namespace EMBRS_Discord
                         }
                     case "swap":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "swap"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "swap"));
                             var swapTask = Task.Run(async () =>
                             {
                                 await HandleSwapCommand(command);
@@ -115,7 +117,7 @@ namespace EMBRS_Discord
                         }
                     case "tip":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "tip"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "tip"));
                             var tipTask = Task.Run(async () =>
                             {
                                 await HandleTipCommand(command);
@@ -124,7 +126,7 @@ namespace EMBRS_Discord
                         }
                     case "tournament":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "tournament"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "tournament"));
                             var tournamentTask = Task.Run(async () =>
                             {
                                 await HandleTournamentCommand(command);
@@ -133,7 +135,7 @@ namespace EMBRS_Discord
                         }
                     case "tournamentgoal":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "tournamentgoal"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "tournamentgoal"));
                             var tournamentGoalTask = Task.Run(async () =>
                             {
                                 await HandleTournamentGoalCommand(command);
@@ -142,7 +144,7 @@ namespace EMBRS_Discord
                         }
                     case "tournamentreward":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "tournamentreward"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "tournamentreward"));
                             var tournamentRewardTask = Task.Run(async () =>
                             {
                                 await HandleTournamentRewardCommand(command);
@@ -151,7 +153,7 @@ namespace EMBRS_Discord
                         }
                     case "tournamentsponsor":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "tournamentsponsor"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "tournamentsponsor"));
                             var tournamentSponsorTask = Task.Run(async () =>
                             {
                                 await HandleTournamentSponsorCommand(command);
@@ -160,25 +162,25 @@ namespace EMBRS_Discord
                         }
                     case "tournamentstatus":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "tournamentstatus"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "tournamentstatus"));
                             var tournamentStatusTask = Task.Run(async () =>
                             {
                                 await HandleTournamentStatusCommand(command);
                             });
                             break;
                         }
-                    case "unregister":
-                        {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "unregister"));
-                            var unregisterTask = Task.Run(async () =>
-                            {
-                                await HandleUnregisterCommand(command);
-                            });
-                            break;
-                        }
+                    //case "unregister":
+                    //    {
+                    //        await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "unregister"));
+                    //        var unregisterTask = Task.Run(async () =>
+                    //        {
+                    //            await HandleUnregisterCommand(command);
+                    //        });
+                    //        break;
+                    //    }
                     case "vote":
                         {
-                            await Program.Log(new LogMessage(LogSeverity.Info, "Command", "vote"));
+                            await Program.Log(new LogMessage(LogSeverity.Info, "Command by " + userInfo.Username + "#" + userInfo.Discriminator, "vote"));
                             var voteTask = Task.Run(async () =>
                             {
                                 await HandleVoteCommand(command);
@@ -287,7 +289,6 @@ namespace EMBRS_Discord
                     .AddField("/tip <recipient> <amount>", tipStringBuilder.ToString())
                     .AddField("/tournament", "Sign-up for the current week's Emberlight tournament (#bot-commands)")
                     .AddField("/tournamentstatus", "Show the current week's tournament information (#bot-commands)")
-                    .AddField("/unregister", "Unregister from the EMBRS bot (#bot-commands)")
                     .AddField("/vote", "Vote on a governance topic within the Discord channel (any governance topic channel)");
 
                 await command.FollowupAsync(embed: embedBuiler.Build(), ephemeral: true);
@@ -328,6 +329,8 @@ namespace EMBRS_Discord
                 await command.DeferAsync(ephemeral: true);
                 if (!await CheckForTimeBetweenCommands(command)) return;
                 if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
+                if (!await CheckIfValidXRPAddress(command)) return;
+                if (!await CheckIfUniqueXRPAddress(command)) return;
 
                 var userInfo = command.User as SocketGuildUser;
                 var xrpAddress = (string)command.Data.Options.First().Value;
@@ -965,32 +968,32 @@ namespace EMBRS_Discord
             }
         }
 
-        private async Task HandleUnregisterCommand(SocketSlashCommand command)
-        {
-            try
-            {
-                await command.DeferAsync(ephemeral: true);
-                if (!await CheckForTimeBetweenCommands(command)) return;
-                if (!await CheckIfRegistered(command)) return;
-                if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
+        //private async Task HandleUnregisterCommand(SocketSlashCommand command)
+        //{
+        //    try
+        //    {
+        //        await command.DeferAsync(ephemeral: true);
+        //        if (!await CheckForTimeBetweenCommands(command)) return;
+        //        if (!await CheckIfRegistered(command)) return;
+        //        if (!await CheckIfCorrectChannel(command, "bot-commands")) return;
 
-                var userInfo = command.User as SocketGuildUser;
+        //        var userInfo = command.User as SocketGuildUser;
 
-                Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).UnregisterAccount(userInfo.Id);
-                var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
-                var tournamentRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament");
-                var winnerRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament Winner");
-                var roles = new List<SocketRole>() { tournamentRole, winnerRole };
-                await userInfo.RemoveRolesAsync(roles);
-                Database.IsDirty = true;
+        //        Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).UnregisterAccount(userInfo.Id);
+        //        var guild = _discordClient.GetGuild(ulong.Parse(Settings.GuildID));
+        //        var tournamentRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament");
+        //        var winnerRole = guild.Roles.FirstOrDefault(x => x.Name == "Tournament Winner");
+        //        var roles = new List<SocketRole>() { tournamentRole, winnerRole };
+        //        await userInfo.RemoveRolesAsync(roles);
+        //        Database.IsDirty = true;
 
-                await command.FollowupAsync("You are no longer registered with EMBRS bot!", ephemeral: true);
-            }
-            catch (Exception ex)
-            {
-                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
-            }
-        }
+        //        await command.FollowupAsync("You are no longer registered with EMBRS bot!", ephemeral: true);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+        //    }
+        //}
 
         private async Task HandleVoteCommand(SocketSlashCommand command)
         {
@@ -1079,6 +1082,52 @@ namespace EMBRS_Discord
             }
         }
 
+        private async Task<bool> CheckIfValidXRPAddress(SocketSlashCommand command)
+        {
+            try
+            {
+                var userInfo = command.User as SocketGuildUser;
+                var xrpAddress = (string)command.Data.Options.First().Value;
+                if(!await XRPL.ReturnValidXRPAddress(xrpAddress))
+                {
+                    await command.FollowupAsync("Invalid XRP address!", ephemeral: true);
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+                return false;
+            }
+        }
+
+        private async Task<bool> CheckIfUniqueXRPAddress(SocketSlashCommand command)
+        {
+            try
+            {
+                var userInfo = command.User as SocketGuildUser;
+                var xrpAddress = (string)command.Data.Options.First().Value;
+
+                foreach (var account in Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccounts())
+                {
+                    if(account.GetXRPAddress() == xrpAddress || account.GetPreviousXRPAddresses().Contains(xrpAddress))
+                    {
+                        await command.FollowupAsync("This XRP address is already attached to a Discord user!", ephemeral: true);
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await Program.Log(new LogMessage(LogSeverity.Error, ex.Source, ex.Message, ex));
+                return false;
+            }
+        }
+
         private async Task<bool> CheckIfCorrectChannel(SocketSlashCommand command, string channelName)
         {
             try
@@ -1102,6 +1151,19 @@ namespace EMBRS_Discord
                 if (Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).ReceivedFaucetReward())
                 {
                     await command.FollowupAsync("You have already received today's faucet reward!", ephemeral: true);
+                    return true;
+                }
+
+                var receivedFaucetAddress = new List<string>();
+                foreach (var account in Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccounts())
+                {
+                    receivedFaucetAddress.Add(account.GetReceivedFaucetRewardAtAddress());
+                }
+
+                if(receivedFaucetAddress.Contains(Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).GetXRPAddress()))
+                {
+                    await command.FollowupAsync("You have already received today's faucet reward!", ephemeral: true);
+                    Database.GetDatabase<DatabaseAccounts>(DatabaseType.Accounts).GetAccount(userInfo.Id).SetReceivedFaucetReward(true);
                     return true;
                 }
 
